@@ -33,15 +33,13 @@
     const { useState, useEffect, useRef } = React;
 
     // ==========================================
-    // ⚠️ SUAS CHAVES DO SUPABASE (CONFIGURADAS)
+    // ⚠️ SUAS CHAVES CONFIGURADAS (LINHA ÚNICA)
     // ==========================================
     const SUPABASE_URL = 'https://svibstwhmygwczobybse.supabase.co'; 
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2aWJzdHdobXlnd2N6b2J5YnNlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MDAyNzAsImV4cCI6MjA5MTE3NjI3MH0.nlOAfAfsz7BHs3LkBIBG5xNxVv2i7-BCGgj7uPR7dSg';
-
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     function App() {
-      // --- ESTADOS GLOBAIS ---
       const [view, setView] = useState('select_loja'); 
       const [user, setUser] = useState(null); 
       const [currentLoja, setCurrentLoja] = useState(null);
@@ -53,44 +51,47 @@
       const [historico, setHistorico] = useState([]);
       
       const [dashboardLojaFiltro, setDashboardLojaFiltro] = useState('todas');
+      const [filtroTempo, setFiltroTempo] = useState('hoje');
+      
       const [flowStep, setFlowStep] = useState(1);
       const [isSaving, setIsSaving] = useState(false);
 
-      // Estado do Registro
+      // Estados do Registro
       const [registro, setRegistro] = useState({ foto_arquivo: null, foto_url_local: null, produto: null, qtd: '', unidade: 'un', motivo: null, responsavel: null, observacao: '', custo_unitario: 0, icone: '📦' });
       const [customProductName, setCustomProductName] = useState('');
       const [customProductEmoji, setCustomProductEmoji] = useState('📦');
-      const [isCustomMotivo, setIsCustomMotivo] = useState(false);
-      const [customMotivoName, setCustomMotivoName] = useState('');
       const [showColegasList, setShowColegasList] = useState(false);
-      const [selectedColega, setSelectedColega] = useState(null);
-      const [observacaoColega, setObservacaoColega] = useState('');
+      const [userPendingPin, setUserPendingPin] = useState(null);
+      const [pinAttempt, setPinAttempt] = useState('');
+      const [pinError, setPinError] = useState(false);
       const [fotoModal, setFotoModal] = useState(null);
 
       useEffect(() => { fetchDados(); }, []);
 
       async function fetchDados() {
-        setLoading(true);
-        const { data: dl } = await supabase.from('lojas').select('*').order('nome');
-        const { data: de } = await supabase.from('equipe').select('*').order('nome');
-        const { data: dp } = await supabase.from('produtos').select('*').order('nome');
-        const { data: dh } = await supabase.from('historico').select('*').order('id', { ascending: false });
-        
-        if(dl) setLojas(dl);
-        if(de) setEquipe(de);
-        if(dp) setProdutosLista(dp);
-        if(dh) setHistorico(dh);
-        setLoading(false);
+          setLoading(true);
+          const { data: dl } = await supabase.from('lojas').select('*').order('nome');
+          const { data: de } = await supabase.from('equipe').select('*').order('nome');
+          const { data: dp } = await supabase.from('produtos').select('*').order('nome');
+          const { data: dh } = await supabase.from('historico').select('*').order('id', { ascending: false });
+          if(dl) setLojas(dl); if(de) setEquipe(de); if(dp) setProdutosLista(dp); if(dh) setHistorico(dh);
+          setLoading(false);
       }
 
-      const formatarMoeda = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-
-      const buscarEmoji = (t) => {
-        const dict = {'carne':'🥩','pao':'🍞','batata':'🍟','refri':'🥤','ovo':'🥚','salada':'🥗','frango':'🍗','queijo':'🧀'};
-        const low = t.toLowerCase();
-        for (const [k, e] of Object.entries(dict)) { if(low.includes(k)) return e; }
-        return '📦';
+      const handleSelectUser = (u) => {
+          if (u.funcao === 'operacional') { setUser(u); setView('home_func'); }
+          else { setUserPendingPin(u); setPinAttempt(''); setPinError(false); setView('pin_modal'); }
       };
+
+      const handlePinSubmit = () => {
+          if (pinAttempt === userPendingPin.codigo) { 
+              setUser(userPendingPin); 
+              setView(userPendingPin.funcao === 'admin' ? 'dashboard' : 'home_func'); 
+              setDashboardLojaFiltro(userPendingPin.loja_id ? userPendingPin.loja_id.toString() : 'todas');
+          } else { setPinError(true); setPinAttempt(''); }
+      };
+
+      const formatarMoeda = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
       // --- GRÁFICOS ---
       const chartBarRef = useRef(null);
@@ -102,60 +103,87 @@
             const dados = historico.filter(h => dashboardLojaFiltro === 'todas' || h.loja_id === parseInt(dashboardLojaFiltro));
             const labels = [...new Set(dados.map(d => d.prod))];
             const valores = labels.map(p => dados.filter(x => x.prod === p).reduce((a,b) => a + Number(b.qtd), 0));
-
             chartBarInstance.current = new Chart(chartBarRef.current, {
                 type: 'bar',
-                data: {
-                    labels: labels.length ? labels : ['Sem dados'],
-                    datasets: [{ label: 'Volume', data: valores.length ? valores : [0], backgroundColor: '#00A86B', borderRadius: 5 }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                data: { labels, datasets: [{ label: 'Volume', data: valores, backgroundColor: '#00A86B', borderRadius: 8 }] },
+                options: { responsive: true, maintainAspectRatio: false }
             });
         }
       }, [view, loading, dashboardLojaFiltro, historico]);
 
-      if (loading) return <div className="flex-1 flex items-center justify-center bg-slate-900 text-white font-bold">Carregando PerdaZero...</div>;
+      const BottomNav = () => (
+          <div className="bg-white border-t p-2 pb-8 flex justify-around items-center absolute bottom-0 w-full z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.1)]">
+              <button onClick={() => setView('dashboard')} className={`flex flex-col items-center flex-1 ${view==='dashboard'?'text-brand':'text-slate-300'}`}><span className="text-xl">📊</span><span className="text-[10px] font-black uppercase mt-1">Painel</span></button>
+              <button onClick={() => setView('manager_produtos')} className={`flex flex-col items-center flex-1 ${view==='manager_produtos'?'text-brand':'text-slate-300'}`}><span className="text-xl">📦</span><span className="text-[10px] font-black uppercase mt-1">Produtos</span></button>
+              <button onClick={() => setView('manager_lojas')} className={`flex flex-col items-center flex-1 ${view==='manager_lojas'?'text-brand':'text-slate-300'}`}><span className="text-xl">🏪</span><span className="text-[10px] font-black uppercase mt-1">Lojas</span></button>
+              <button onClick={() => setView('manager_equipe')} className={`flex flex-col items-center flex-1 ${view==='manager_equipe'?'text-brand':'text-slate-300'}`}><span className="text-xl">👥</span><span className="text-[10px] font-black uppercase mt-1">Equipe</span></button>
+          </div>
+      );
+
+      if (loading) return <div className="flex-1 flex items-center justify-center bg-slate-900 text-white font-black text-xl animate-pulse">CARREGANDO...</div>;
 
       // ==========================================
-      // COMPONENTES DE VISÃO
+      // VISÕES DO APLICATIVO
       // ==========================================
 
       if (view === 'select_loja') {
-        return (
-          <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center animate-fade-in">
-            <div className="text-center mb-10">
-                <h1 className="text-4xl font-black text-white">Perda<span className="text-brand">Zero</span></h1>
-                <p className="text-slate-400 mt-2">Roy's Store - Controle de Desperdício</p>
-            </div>
-            <div className="space-y-3">
-              {lojas.map(l => (
-                <button key={l.id} onClick={() => { setCurrentLoja(l); setView('select_user'); }} className="w-full bg-slate-800 p-5 rounded-2xl text-white font-bold flex justify-between items-center active:scale-95 border border-slate-700">
-                  {l.nome} <span className="text-2xl">🏪</span>
-                </button>
-              ))}
-              <button onClick={() => { setUser({funcao:'admin', nome: 'Walney'}); setView('dashboard'); }} className="w-full mt-8 border-2 border-dashed border-slate-700 p-4 rounded-2xl text-slate-500 font-bold">Acesso Administrativo</button>
-            </div>
-          </div>
-        );
+          return (
+              <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center animate-fade-in">
+                  <h1 className="text-5xl font-black text-white text-center mb-12 tracking-tighter">Perda<span className="text-brand">Zero</span></h1>
+                  <div className="space-y-4">
+                      {lojas.map(l => (
+                          <button key={l.id} onClick={() => { setCurrentLoja(l); setView('select_user'); }} className="w-full bg-slate-800 border-2 border-slate-700 text-white p-7 rounded-[35px] font-black text-2xl flex justify-between items-center active:scale-95 transition-transform">
+                              {l.nome} 🏪
+                          </button>
+                      ))}
+                      <button onClick={() => { 
+                          const admin = equipe.find(e => e.funcao === 'admin');
+                          if(admin) handleSelectUser(admin); else alert('Admin não cadastrado no banco!');
+                      }} className="w-full mt-10 border-2 border-dashed border-slate-600 text-slate-500 p-5 rounded-[35px] font-black text-lg uppercase tracking-widest">Acesso Administrativo 🔐</button>
+                  </div>
+              </div>
+          );
       }
 
       if (view === 'select_user') {
-          const equipeLoja = equipe.filter(e => e.loja_id === currentLoja.id || e.funcao === 'admin');
+          const equipeLoja = equipe.filter(e => e.loja_id === currentLoja?.id || e.funcao === 'admin');
           return (
-              <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up">
-                  <div className="bg-brand p-8 text-white rounded-b-[40px] shadow-lg text-center">
-                      <p className="text-green-100 text-xs font-bold uppercase tracking-widest mb-1">{currentLoja.nome}</p>
-                      <h2 className="text-3xl font-black">Quem é você?</h2>
+              <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up relative">
+                  <div className="bg-brand p-10 pt-14 pb-12 rounded-b-[50px] shadow-2xl text-white text-center">
+                      <p className="text-green-100 text-sm font-black uppercase tracking-[0.2em] mb-2">{currentLoja.nome}</p>
+                      <h2 className="text-4xl font-black tracking-tight">Quem é você?</h2>
                   </div>
-                  <div className="flex-1 p-6 grid grid-cols-2 gap-4 overflow-y-auto">
-                      {equipeLoja.map(e => (
-                          <button key={e.id} onClick={() => { setUser(e); setView(e.funcao === 'operacional' ? 'home_func' : 'dashboard'); }} className="bg-white border p-6 rounded-3xl flex flex-col items-center shadow-sm active:scale-95">
-                              <span className="text-5xl mb-2">{e.avatar || '👤'}</span>
-                              <span className="font-bold text-slate-700">{e.nome.split(' ')[0]}</span>
+                  <div className="flex-1 p-6 grid grid-cols-2 gap-5 overflow-y-auto hide-scrollbar pb-24">
+                      {equipeLoja.map(m => (
+                          <button key={m.id} onClick={() => handleSelectUser(m)} className="bg-white border-2 border-slate-100 p-8 rounded-[40px] flex flex-col items-center shadow-md active:scale-95 transition-all">
+                              <div className="text-6xl mb-4">{m.avatar || '👤'}</div>
+                              <span className="font-black text-slate-800 text-xl tracking-tight">{m.nome.split(' ')[0]}</span>
                           </button>
                       ))}
                   </div>
-                  <button onClick={() => setView('select_loja')} className="p-6 text-slate-400 font-bold text-sm">← Voltar / Trocar Loja</button>
+                  <button onClick={() => setView('select_loja')} className="absolute bottom-6 left-0 right-0 text-slate-400 font-black text-center uppercase tracking-widest text-xs">← Voltar / Trocar Unidade</button>
+              </div>
+          );
+      }
+
+      if (view === 'pin_modal') {
+          return (
+              <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center items-center animate-fade-in">
+                  <div className="bg-white w-full max-w-sm rounded-[50px] p-10 flex flex-col items-center shadow-2xl relative">
+                      <div className="text-7xl mb-4">{userPendingPin.avatar}</div>
+                      <h2 className="text-3xl font-black text-slate-800 mb-1">{userPendingPin.nome.split(' ')[0]}</h2>
+                      <p className="text-slate-400 font-bold mb-8">Digite seu PIN de segurança</p>
+                      <div className="flex space-x-4 mb-10">
+                        {[0, 1, 2, 3].map((i) => (<div key={i} className={`w-16 h-16 rounded-[22px] flex items-center justify-center text-4xl font-black border-4 ${pinAttempt[i] ? 'border-brand text-brand bg-green-50 scale-110' : 'border-slate-100 text-transparent bg-gray-50'} transition-all`}>{pinAttempt[i] || '•'}</div>))}
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 w-full">
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (<button key={num} onClick={() => setPinAttempt(pinAttempt + num)} disabled={pinAttempt.length >= 4} className="bg-gray-100 text-slate-800 text-3xl font-black py-6 rounded-[25px] active:bg-slate-200">{num}</button>))}
+                          <button onClick={() => setView('select_user')} className="text-slate-300 font-black">SAIR</button>
+                          <button onClick={() => setPinAttempt(pinAttempt + '0')} disabled={pinAttempt.length >= 4} className="bg-gray-100 text-slate-800 text-3xl font-black py-6 rounded-[25px] active:bg-slate-200">0</button>
+                          <button onClick={() => setPinAttempt(pinAttempt.slice(0, -1))} className="bg-red-50 text-red-500 py-6 rounded-[25px] flex items-center justify-center text-2xl">←</button>
+                      </div>
+                      <button onClick={handlePinSubmit} disabled={pinAttempt.length !== 4} className={`w-full py-6 mt-10 rounded-[30px] font-black text-2xl text-white shadow-xl ${pinAttempt.length === 4 ? 'bg-brand' : 'bg-slate-200'}`}>ENTRAR AGORA</button>
+                  </div>
               </div>
           );
       }
@@ -163,14 +191,14 @@
       if (view === 'home_func') {
           return (
               <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up">
-                  <div className="bg-brand p-8 text-white rounded-b-[40px] shadow-lg flex justify-between items-center">
-                      <div><p className="text-green-100 text-xs font-bold">BOM TRABALHO,</p><h2 className="text-2xl font-black">{user.nome.split(' ')[0]}</h2></div>
-                      <button onClick={() => setView('select_user')} className="bg-white/20 p-3 rounded-full">Logout</button>
+                  <div className="bg-brand p-10 pt-14 pb-14 rounded-b-[55px] shadow-2xl flex justify-between items-center text-white">
+                      <div><p className="text-green-100 font-black text-xs tracking-widest uppercase mb-1">Cozinha ativa</p><h2 className="text-4xl font-black tracking-tighter">{user.nome.toUpperCase()}</h2></div>
+                      <button onClick={() => setView('select_loja')} className="p-5 bg-white/20 rounded-full shadow-inner text-2xl">🚪</button>
                   </div>
-                  <div className="flex-1 flex flex-col items-center justify-center p-6">
-                      <button onClick={() => { setFlowStep(1); setView('flow'); }} className="w-full max-w-xs aspect-square bg-red-50 border-4 border-red-500 rounded-[50px] flex flex-col items-center justify-center text-red-600 active:scale-95 shadow-2xl">
-                          <span className="text-6xl mb-4">📸</span>
-                          <span className="text-2xl font-black uppercase text-center">Fotografar<br/>Perda</span>
+                  <div className="flex-1 flex flex-col items-center justify-center p-8">
+                      <button onClick={() => { setFlowStep(1); setView('flow'); setRegistro({ ...registro, foto_url_local: null, foto_arquivo: null, qtd: '' }); }} className="w-full max-w-xs aspect-square bg-red-50 border-[8px] border-red-500 rounded-[65px] flex flex-col items-center justify-center text-red-600 active:scale-95 shadow-[0_30px_60px_rgba(239,68,68,0.3)] transition-transform">
+                          <span className="text-8xl mb-4">📸</span>
+                          <span className="text-3xl font-black uppercase text-center leading-tight">Registrar<br/>Perda</span>
                       </button>
                   </div>
               </div>
@@ -178,98 +206,88 @@
       }
 
       if (view === 'flow') {
+          const nextStep = () => setFlowStep(flowStep + 1);
+          
           const finishFlow = async (nomeResp) => {
               setIsSaving(true);
               const qtdNum = parseFloat(registro.qtd.toString().replace(',', '.')) || 0;
-              const custoT = qtdNum * registro.custo_unitario;
-              
               let finalPhotoUrl = null;
+              
               if (registro.foto_arquivo) {
-                  const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-                  const { data: upData } = await supabase.storage.from('fotos_perdas').upload(fileName, registro.foto_arquivo);
-                  if(upData) {
-                      const { data: pub } = supabase.storage.from('fotos_perdas').getPublicUrl(fileName);
-                      finalPhotoUrl = pub.publicUrl;
-                  }
+                  const fileName = `${Date.now()}.jpg`;
+                  const { data: up } = await supabase.storage.from('fotos_perdas').upload(fileName, registro.foto_arquivo);
+                  if(up) { finalPhotoUrl = supabase.storage.from('fotos_perdas').getPublicUrl(fileName).data.publicUrl; }
               }
 
-              const { error } = await supabase.from('historico').insert([{
+              await supabase.from('historico').insert([{
                   loja_id: currentLoja.id, relator: user.nome, responsavel: nomeResp, prod: registro.produto,
                   qtd: qtdNum, uni: registro.unidade, motivo: registro.motivo, observacao: observacaoColega,
                   hora: new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
-                  img: registro.icone, custo_total: custoT, foto_url: finalPhotoUrl, timestamp: Date.now()
+                  img: registro.icone, custo_total: qtdNum * (registro.custo_unitario || 0), foto_url: finalPhotoUrl, timestamp: Date.now()
               }]);
 
-              setIsSaving(false);
-              alert('✅ Registro salvo!');
-              fetchDados();
-              setView('home_func');
-              setRegistro({ foto_arquivo: null, foto_url_local: null, produto: null, qtd: '', unidade: 'un', motivo: null, responsavel: null, observacao: '', custo_unitario: 0, icone: '📦' });
+              setIsSaving(false); alert('✅ Salvo com sucesso!'); fetchDados(); setView('home_func');
           };
 
-          if (isSaving) return <div className="flex-1 flex flex-col items-center justify-center bg-slate-900 text-white"><div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mb-4"></div>Salvando...</div>;
-
           return (
-              <div className="flex-1 flex flex-col bg-white">
-                  <div className="p-4 border-b flex justify-between items-center text-slate-400 font-bold text-xs uppercase tracking-widest">
-                      <button onClick={() => setView('home_func')}>X Sair</button>
-                      <span>Passo {flowStep} de 5</span>
-                      <div className="w-10"></div>
+              <div className="flex-1 flex flex-col bg-white overflow-hidden">
+                  <div className="p-5 border-b flex items-center justify-between text-slate-300 font-black text-xs tracking-[0.3em]">
+                      <button onClick={() => setView('home_func')} className="text-slate-800">FECHAR</button>
+                      <span>PASSO {flowStep} DE 5</span>
+                      <div className="w-12"></div>
                   </div>
-
+                  
+                  <div className="flex-1 overflow-y-auto pb-10">
                   {flowStep === 1 && (
-                      <div className="flex-1 p-6 flex flex-col items-center justify-center text-center animate-slide-up">
-                          <h3 className="text-2xl font-black mb-8">Tire uma foto do item</h3>
-                          <label className="w-full py-6 bg-brand text-white font-black rounded-3xl text-xl shadow-xl flex items-center justify-center gap-2">
-                              📷 Abrir Câmera
+                      <div className="p-8 flex flex-col items-center justify-center min-h-full animate-slide-up">
+                          <h3 className="text-4xl font-black text-slate-800 mb-12 text-center tracking-tight">Primeiro, a foto</h3>
+                          <label className="w-full py-10 bg-brand text-white font-black rounded-[45px] text-2xl shadow-2xl flex items-center justify-center gap-4 active:scale-95 cursor-pointer">
+                              📸 ABRIR CÂMERA
                               <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e)=>{
-                                  if(e.target.files[0]) {
-                                      setRegistro({...registro, foto_arquivo: e.target.files[0], foto_url_local: URL.createObjectURL(e.target.files[0])});
-                                      setFlowStep(2);
-                                  }
+                                  if(e.target.files[0]) { setRegistro({...registro, foto_arquivo: e.target.files[0], foto_url_local: URL.createObjectURL(e.target.files[0])}); setFlowStep(2); }
                               }} />
                           </label>
-                          <button onClick={()=>setFlowStep(2)} className="mt-8 text-slate-400 underline font-bold">Pular Foto</button>
+                          <button onClick={()=>setFlowStep(2)} className="mt-12 text-slate-400 underline font-black text-xl">Pular Foto</button>
                       </div>
                   )}
 
                   {flowStep === 2 && (
-                      <div className="flex-1 p-6 flex flex-col animate-slide-up bg-gray-50">
-                          <h3 className="text-xl font-black mb-4">O que é isso?</h3>
-                          <input autoFocus placeholder="Ex: Tomate" value={customProductName} onChange={(e)=>{setCustomProductName(e.target.value); setCustomProductEmoji(buscarEmoji(e.target.value));}} className="w-full p-5 rounded-2xl border-2 border-brand font-bold text-lg mb-4 focus:outline-none shadow-sm" />
-                          <div className="grid grid-cols-2 gap-3 overflow-y-auto hide-scrollbar">
+                      <div className="p-8 flex flex-col animate-slide-up bg-gray-50 min-h-full">
+                          <h3 className="text-2xl font-black text-slate-800 mb-6">O que foi perdido?</h3>
+                          <input autoFocus placeholder="Buscar produto..." value={customProductName} onChange={(e)=>{setCustomProductName(e.target.value);}} className="w-full p-6 bg-white rounded-[30px] border-4 border-brand/20 font-black text-2xl mb-8 outline-none shadow-sm" />
+                          <div className="grid grid-cols-2 gap-4">
                               {produtosLista.map(p => (
-                                  <button key={p.id} onClick={()=>{setRegistro({...registro, produto: p.nome, icone: p.icone, custo_unitario: p.custo}); setFlowStep(3);}} className="bg-white border p-4 rounded-2xl flex items-center gap-3 shadow-sm active:bg-green-50">
-                                      <span className="text-2xl">{p.icone}</span><span className="font-bold text-slate-700 text-sm">{p.nome}</span>
+                                  <button key={p.id} onClick={()=>{setRegistro({...registro, produto: p.nome, icone: p.icone, custo_unitario: p.custo}); setFlowStep(3);}} className="bg-white p-7 rounded-[40px] shadow-md border-2 border-transparent active:border-brand flex flex-col items-center">
+                                      <span className="text-5xl mb-3">{p.icone}</span>
+                                      <span className="font-black text-slate-700 text-center uppercase text-xs tracking-widest">{p.nome}</span>
                                   </button>
                               ))}
                           </div>
-                          {customProductName && <button onClick={()=>{setRegistro({...registro, produto: customProductName, icone: customProductEmoji, custo_unitario:0}); setFlowStep(3);}} className="mt-4 w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg">Confirmar: {customProductName}</button>}
                       </div>
                   )}
 
                   {flowStep === 3 && (
-                      <div className="flex-1 p-6 flex flex-col items-center animate-slide-up bg-gray-50">
-                          <h3 className="text-xl font-black mb-1">Qual a quantidade?</h3>
-                          <p className="text-brand font-black text-2xl mb-8">{registro.icone} {registro.produto}</p>
-                          <div className="text-7xl font-black text-slate-800 mb-8">{registro.qtd || '0'}<span className="text-xl text-slate-400 ml-2">{registro.unidade}</span></div>
-                          <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
-                              {[1,2,3,4,5,6,7,8,9].map(n => <button key={n} onClick={()=>setRegistro({...registro, qtd: registro.qtd + n})} className="bg-white p-5 rounded-2xl font-black text-2xl shadow-sm active:bg-gray-100">{n}</button>)}
-                              <button onClick={()=>setRegistro({...registro, qtd: registro.qtd + ','})} className="bg-white p-5 rounded-2xl font-black text-2xl shadow-sm">,</button>
-                              <button onClick={()=>setRegistro({...registro, qtd: registro.qtd + '0'})} className="bg-white p-5 rounded-2xl font-black text-2xl shadow-sm">0</button>
-                              <button onClick={()=>setRegistro({...registro, qtd: registro.qtd.slice(0,-1)})} className="bg-red-50 text-red-500 p-5 rounded-2xl font-black text-2xl shadow-sm">←</button>
+                      <div className="p-8 flex flex-col items-center animate-slide-up bg-gray-50 min-h-full">
+                          <p className="text-brand font-black text-4xl mb-4 uppercase">{registro.icone} {registro.produto}</p>
+                          <div className="text-9xl font-black text-slate-800 mb-10 flex items-baseline">{registro.qtd || '0'}<span className="text-3xl text-slate-300 ml-3 uppercase">{registro.unidade}</span></div>
+                          <div className="grid grid-cols-3 gap-4 w-full max-w-sm">
+                              {[1,2,3,4,5,6,7,8,9].map(n => <button key={n} onClick={()=>setRegistro({...registro, qtd: registro.qtd + n})} className="bg-white p-7 rounded-[30px] font-black text-4xl shadow-md active:bg-slate-100">{n}</button>)}
+                              <button onClick={()=>setRegistro({...registro, qtd: registro.qtd + ','})} className="bg-white p-7 rounded-[30px] font-black text-4xl shadow-md">,</button>
+                              <button onClick={()=>setRegistro({...registro, qtd: registro.qtd + '0'})} className="bg-white p-7 rounded-[30px] font-black text-4xl shadow-md">0</button>
+                              <button onClick={()=>setRegistro({...registro, qtd: registro.qtd.slice(0,-1)})} className="bg-red-50 text-red-500 p-7 rounded-[30px] font-black text-4xl shadow-md">←</button>
                           </div>
-                          <button onClick={()=>setFlowStep(4)} disabled={!registro.qtd} className={`mt-auto w-full py-5 rounded-3xl font-black text-xl text-white ${registro.qtd ? 'bg-brand' : 'bg-gray-300'}`}>AVANÇAR</button>
+                          <button onClick={()=>setFlowStep(4)} disabled={!registro.qtd} className={`mt-12 w-full py-7 rounded-[40px] font-black text-3xl text-white shadow-2xl transition-all ${registro.qtd ? 'bg-brand' : 'bg-slate-200'}`}>AVANÇAR</button>
                       </div>
                   )}
 
                   {flowStep === 4 && (
-                      <div className="flex-1 p-6 animate-slide-up bg-gray-50">
-                          <h3 className="text-2xl font-black mb-6">Por que foi perdido?</h3>
-                          <div className="grid grid-cols-2 gap-4">
+                      <div className="p-8 animate-slide-up bg-gray-50 min-h-full">
+                          <h3 className="text-3xl font-black text-slate-800 mb-8 text-center uppercase tracking-tighter">Por que aconteceu?</h3>
+                          <div className="grid grid-cols-2 gap-5">
                               {motivosLista.map(m => (
-                                  <button key={m.id} onClick={()=>{setRegistro({...registro, motivo: m.nome}); setFlowStep(5);}} className="bg-white p-6 rounded-3xl flex flex-col items-center shadow-sm border active:border-brand">
-                                      <span className="text-4xl mb-2">{m.icone}</span><span className="font-bold text-slate-700 text-sm">{m.nome}</span>
+                                  <button key={m.id} onClick={()=>{setRegistro({...registro, motivo: m.nome}); setFlowStep(5);}} className="bg-white p-10 rounded-[50px] flex flex-col items-center shadow-xl border-4 border-transparent active:border-brand">
+                                      <span className="text-6xl mb-4">{m.icone}</span>
+                                      <span className="font-black text-slate-700 text-center uppercase text-sm leading-tight">{m.nome}</span>
                                   </button>
                               ))}
                           </div>
@@ -277,204 +295,206 @@
                   )}
 
                   {flowStep === 5 && (
-                      <div className="flex-1 p-6 flex flex-col items-center justify-center text-center animate-slide-up bg-gray-50">
-                          <h3 className="text-3xl font-black mb-2">Você sabe quem foi?</h3>
-                          <p className="text-slate-500 mb-10 text-sm">Fique tranquilo(a)! Esta informação é sigilosa e ajuda na gestão da cozinha.</p>
-                          <div className="w-full space-y-4">
-                              <button onClick={()=>finishFlow(user.nome)} className="w-full py-5 bg-white border rounded-3xl font-black text-slate-700 text-lg shadow-sm">🙋‍♂️ Fui eu mesmo</button>
-                              <button onClick={()=>finishFlow('Não identificado')} className="w-full py-5 bg-white border rounded-3xl font-black text-slate-700 text-lg shadow-sm">🤷‍♂️ Não sei / Achei assim</button>
-                              <button onClick={()=>setShowColegasList(true)} className="w-full py-5 bg-white border rounded-3xl font-black text-brand text-lg shadow-sm">Foi outra pessoa...</button>
+                      <div className="p-8 flex flex-col items-center justify-center text-center animate-slide-up bg-gray-50 min-h-full">
+                          <h2 className="text-5xl font-black text-slate-800 mb-4 tracking-tighter">Quem foi?</h2>
+                          <p className="text-slate-400 font-bold mb-14 text-lg">Relato sigiloso para auditoria.</p>
+                          <div className="w-full space-y-5">
+                              <button onClick={()=>finishFlow(user.nome)} className="w-full py-8 bg-white border-4 border-slate-100 rounded-[35px] font-black text-slate-700 text-2xl shadow-xl active:bg-gray-100 uppercase">🙋‍♂️ Fui eu</button>
+                              <button onClick={()=>finishFlow('Não identificado')} className="w-full py-8 bg-white border-4 border-slate-100 rounded-[35px] font-black text-slate-700 text-2xl shadow-xl active:bg-gray-100 uppercase">🤷‍♂️ Não sei</button>
+                              <button onClick={()=>setShowColegasList(true)} className="w-full py-8 bg-white border-4 border-brand/10 rounded-[35px] font-black text-brand text-2xl shadow-xl active:bg-green-50 uppercase">Outra pessoa...</button>
                           </div>
                           {showColegasList && (
-                              <div className="absolute inset-0 bg-white p-6 animate-slide-up z-20 flex flex-col">
-                                  <h3 className="text-xl font-black mb-4">Selecione o Colega:</h3>
-                                  <div className="grid grid-cols-2 gap-3 overflow-y-auto">
+                              <div className="absolute inset-0 bg-white p-10 animate-slide-up z-30 flex flex-col">
+                                  <h3 className="text-3xl font-black text-slate-800 mb-8 uppercase">Selecionar Colega</h3>
+                                  <div className="grid grid-cols-2 gap-6 overflow-y-auto pb-20">
                                       {equipe.filter(e => e.loja_id === currentLoja.id).map(c => (
-                                          <button key={c.id} onClick={()=>{setSelectedColega(c.nome); finishFlow(c.nome);}} className="bg-gray-50 p-4 rounded-2xl flex flex-col items-center border">
-                                              <span className="text-3xl mb-1">{c.avatar}</span><span className="font-bold text-xs">{c.nome}</span>
+                                          <button key={c.id} onClick={()=>finishFlow(c.nome)} className="bg-gray-50 p-8 rounded-[45px] flex flex-col items-center border-2 border-slate-100">
+                                              <span className="text-6xl mb-3">{c.avatar}</span>
+                                              <span className="font-black text-slate-800 uppercase text-sm tracking-widest">{c.nome}</span>
                                           </button>
                                       ))}
                                   </div>
-                                  <button onClick={()=>setShowColegasList(false)} className="mt-auto p-4 font-bold text-slate-400">Cancelar</button>
+                                  <button onClick={()=>setShowColegasList(false)} className="mt-auto p-6 font-black text-slate-400 uppercase tracking-widest">X Cancelar</button>
                               </div>
                           )}
                       </div>
                   )}
+                  </div>
               </div>
           );
       }
 
       if (view === 'dashboard') {
-        const dadosF = historico.filter(h => dashboardLojaFiltro === 'todas' || h.loja_id === parseInt(dashboardLojaFiltro));
-        const totalP = dadosF.reduce((a,b) => a + (Number(b.custo_total) || 0), 0);
-        return (
-          <div className="flex-1 flex flex-col bg-gray-100 overflow-hidden relative">
-            <div className="bg-slate-900 text-white p-6 pt-10">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold">Painel Gerencial</h2>
-                    <button onClick={() => setView('select_loja')} className="p-2 bg-slate-800 rounded-full">🚪</button>
-                </div>
-                <select value={dashboardLojaFiltro} onChange={(e) => setDashboardLojaFiltro(e.target.value)} className="w-full bg-slate-800 p-3 rounded-xl text-xs font-bold mb-4 border border-slate-700">
-                    <option value="todas">🌐 Visão Global (Todas as Lojas)</option>
-                    {lojas.map(l => <option key={l.id} value={l.id}>🏪 {l.nome}</option>)}
-                </select>
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-slate-800 p-4 rounded-xl border-l-4 border-brand">
-                        <p className="text-slate-400 text-[10px] uppercase font-bold">Prejuízo</p>
-                        <p className="text-xl font-black">{formatarMoeda(totalP)}</p>
-                    </div>
-                    <div className="bg-slate-800 p-4 rounded-xl border-l-4 border-red-500">
-                        <p className="text-slate-400 text-[10px] uppercase font-bold">Itens</p>
-                        <p className="text-xl font-black">{dadosF.length}</p>
-                    </div>
-                </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-28 hide-scrollbar">
-                <div className="bg-white p-4 rounded-2xl shadow-sm border h-52">
-                    <canvas ref={chartBarRef}></canvas>
-                </div>
-                <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-                    <div className="p-4 border-b bg-gray-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Auditoria de Registros</div>
-                    <div className="divide-y">
-                        {dadosF.map(h => (
-                            <div key={h.id} className="p-4 flex justify-between items-center active:bg-gray-50">
-                                <div>
-                                    <p className="font-bold text-sm text-slate-800">{h.img} {h.prod} ({h.qtd}{h.uni})</p>
-                                    <p className="text-[10px] text-slate-400 uppercase font-medium">{h.responsavel} • Por {h.relator}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-black text-red-500 text-sm">{formatarMoeda(h.custo_total)}</p>
-                                    <p className="text-[9px] text-slate-300 font-bold">{h.hora}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-            <div className="absolute bottom-0 w-full bg-white border-t flex justify-around p-2 pb-8 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
-                <button onClick={() => setView('dashboard')} className="flex flex-col items-center text-brand font-bold text-[9px]">📊<br/>PAINEL</button>
-                <button onClick={() => setView('manager_produtos')} className="flex flex-col items-center text-slate-300 font-bold text-[9px]">📦<br/>PRODUTOS</button>
-                <button onClick={() => setView('manager_lojas')} className="flex flex-col items-center text-slate-300 font-bold text-[9px]">🏪<br/>LOJAS</button>
-                <button onClick={() => setView('manager_equipe')} className="flex flex-col items-center text-slate-300 font-bold text-[9px]">👥<br/>EQUIPE</button>
-            </div>
-          </div>
-        );
+          const dados = historico.filter(h => dashboardLojaFiltro === 'todas' || h.loja_id === parseInt(dashboardLojaFiltro));
+          const totalPreju = dados.reduce((a,b)=>a+Number(b.custo_total),0);
+          return (
+              <div className="flex-1 flex flex-col bg-gray-100 h-full relative overflow-hidden">
+                  <PhotoModal />
+                  <div className="bg-slate-900 text-white p-8 pt-14 pb-10 rounded-b-[60px] shadow-2xl">
+                      <div className="flex justify-between items-center mb-8">
+                          <h2 className="text-3xl font-black tracking-tighter">Roy's Admin</h2>
+                          <button onClick={()=>setView('select_loja')} className="p-4 bg-slate-800 rounded-full text-2xl active:bg-slate-700">🚪</button>
+                      </div>
+                      <select value={dashboardLojaFiltro} onChange={(e)=>setDashboardLojaFiltro(e.target.value)} className="w-full bg-slate-800 p-5 rounded-[25px] text-xs font-black mb-8 border-2 border-slate-700 uppercase tracking-[0.3em] outline-none text-brand">
+                          <option value="todas">🌐 VISÃO GLOBAL</option>
+                          {lojas.map(l => <option key={l.id} value={l.id}>🏪 {l.nome.toUpperCase()}</option>)}
+                      </select>
+                      <div className="grid grid-cols-2 gap-5">
+                          <div className="bg-slate-800 p-6 rounded-[35px] border-l-[12px] border-brand shadow-inner">
+                              <p className="text-slate-500 text-[10px] font-black uppercase mb-1 tracking-widest">Prejuízo R$</p>
+                              <p className="text-3xl font-black">{formatarMoeda(totalPreju)}</p>
+                          </div>
+                          <div className="bg-slate-800 p-6 rounded-[35px] border-l-[12px] border-red-500 shadow-inner">
+                              <p className="text-slate-500 text-[10px] font-black uppercase mb-1 tracking-widest">Registros</p>
+                              <p className="text-3xl font-black">{dados.length}</p>
+                          </div>
+                      </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32 hide-scrollbar">
+                      <div className="bg-white p-8 rounded-[50px] shadow-sm border border-slate-100">
+                          <h3 className="text-xs font-black text-slate-300 uppercase tracking-[0.4em] mb-8 text-center">Volume por Produto</h3>
+                          <div className="h-48"><canvas ref={chartBarRef}></canvas></div>
+                      </div>
+                      <div className="bg-white rounded-[50px] shadow-xl border border-slate-50 overflow-hidden">
+                          <div className="p-8 border-b bg-gray-50/50 font-black text-[10px] text-slate-400 uppercase tracking-[0.5em]">Auditoria Real</div>
+                          <div className="divide-y divide-gray-100">
+                              {dados.map(h => (
+                                  <div key={h.id} className="p-7 flex gap-5 items-center active:bg-gray-50">
+                                      {h.foto_url && <button onClick={()=>setFotoModal(h.foto_url)} className="w-16 h-16 bg-slate-100 rounded-3xl overflow-hidden border-2 border-white shadow-lg shrink-0"><img src={h.foto_url} className="w-full h-full object-cover" /></button>}
+                                      <div className="flex-1 min-w-0">
+                                          <p className="font-black text-slate-800 truncate text-lg tracking-tighter">{h.img} {h.prod} ({h.qtd}{h.uni})</p>
+                                          <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Causa: {h.responsavel}</p>
+                                      </div>
+                                      <div className="text-right">
+                                          <p className="font-black text-red-500 text-lg">{formatarMoeda(h.custo_total)}</p>
+                                          <p className="text-[10px] text-slate-300 font-black uppercase">{h.hora}</p>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  </div>
+                  <BottomNav />
+              </div>
+          );
       }
 
+      // TELAS DE GESTÃO COM ROLAGEM CORRIGIDA
       if (view === 'manager_lojas') {
         return (
-          <div className="flex-1 flex flex-col bg-gray-100">
-            <div className="bg-slate-900 text-white p-6 pt-10 flex justify-between items-center">
-                <h2 className="text-xl font-bold">Lojas</h2>
-                <button onClick={() => setView('dashboard')} className="text-xs bg-slate-800 px-4 py-2 rounded-full text-brand font-bold shadow-lg">VOLTAR</button>
+          <div className="flex-1 flex flex-col bg-gray-100 h-full relative">
+            <div className="bg-slate-900 text-white p-8 pt-14 pb-12 rounded-b-[50px] shadow-lg flex justify-between items-center shrink-0">
+                <h2 className="text-3xl font-black uppercase tracking-tighter">Lojas</h2>
+                <button onClick={()=>setView('dashboard')} className="bg-brand px-6 py-3 rounded-full font-black text-xs shadow-xl active:scale-95">OK</button>
             </div>
-            <div className="p-4 space-y-4">
-                <div className="bg-white p-5 rounded-2xl border shadow-sm">
-                    <input id="inLoja" type="text" placeholder="Nome da Unidade" className="w-full border-2 p-4 rounded-xl mb-3 text-sm font-bold focus:border-brand outline-none" />
-                    <button onClick={async () => {
-                        const n = document.getElementById('inLoja').value;
-                        if(!n) return;
-                        await supabase.from('lojas').insert([{ nome: n }]);
-                        fetchDados();
-                        document.getElementById('inLoja').value = '';
-                    }} className="w-full bg-brand text-white font-black p-4 rounded-xl shadow-lg active:scale-95 transition-transform">Salvar Unidade</button>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-32 hide-scrollbar">
+                <div className="bg-white p-8 rounded-[45px] border-4 border-brand/5 shadow-sm">
+                    <input id="newLoja" placeholder="NOME DA UNIDADE" className="w-full p-6 bg-gray-100 rounded-3xl mb-6 font-black text-xl outline-none focus:border-brand border-4 border-transparent transition-all" />
+                    <button onClick={async()=>{
+                        const n = document.getElementById('newLoja').value; if(!n) return;
+                        await supabase.from('lojas').insert([{nome:n}]); fetchDados(); document.getElementById('newLoja').value='';
+                    }} className="w-full bg-slate-900 text-white p-6 rounded-[30px] font-black text-xl active:scale-95 shadow-2xl uppercase">Adicionar</button>
                 </div>
-                <div className="bg-white rounded-2xl border divide-y overflow-hidden shadow-sm">
+                <div className="bg-white rounded-[45px] shadow-lg overflow-hidden divide-y divide-gray-50">
                     {lojas.map(l => (
-                        <div key={l.id} className="p-5 flex justify-between items-center">
-                            <span className="font-bold text-slate-700">🏪 {l.nome}</span>
-                            <button onClick={async () => { if(confirm('Excluir?')) { await supabase.from('lojas').delete().eq('id', l.id); fetchDados(); } }} className="text-red-400 text-[10px] font-black tracking-widest">EXCLUIR</button>
+                        <div key={l.id} className="p-7 flex justify-between items-center bg-white">
+                            <span className="font-black text-slate-700 text-xl">🏪 {l.nome.toUpperCase()}</span>
+                            <button onClick={async()=>{if(confirm('Excluir?')){await supabase.from('lojas').delete().eq('id', l.id); fetchDados();}}} className="text-red-300 font-black text-[10px] uppercase tracking-widest p-4">Remover</button>
                         </div>
                     ))}
                 </div>
             </div>
+            <BottomNav />
           </div>
         );
       }
 
       if (view === 'manager_produtos') {
         return (
-          <div className="flex-1 flex flex-col bg-gray-100">
-            <div className="bg-slate-900 text-white p-6 pt-10 flex justify-between items-center">
-                <h2 className="text-xl font-bold">Produtos</h2>
-                <button onClick={() => setView('dashboard')} className="text-xs bg-slate-800 px-4 py-2 rounded-full text-brand font-bold">VOLTAR</button>
+          <div className="flex-1 flex flex-col bg-gray-100 h-full relative">
+            <div className="bg-slate-900 text-white p-8 pt-14 pb-12 rounded-b-[50px] shadow-lg flex justify-between items-center shrink-0">
+                <h2 className="text-3xl font-black uppercase tracking-tighter">Catálogo</h2>
+                <button onClick={()=>setView('dashboard')} className="bg-brand px-6 py-3 rounded-full font-black text-xs shadow-xl active:scale-95">OK</button>
             </div>
-            <div className="p-4 space-y-4 overflow-y-auto hide-scrollbar">
-                <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-3">
-                    <div className="flex gap-3">
-                        <input id="inIcon" type="text" placeholder="Emoji" className="w-20 border-2 p-4 rounded-xl text-center" />
-                        <input id="inProd" type="text" placeholder="Nome do Item" className="flex-1 border-2 p-4 rounded-xl text-sm font-bold focus:border-brand outline-none" />
+            <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32 hide-scrollbar">
+                <div className="bg-white p-8 rounded-[45px] border-4 border-brand/5 shadow-sm space-y-6">
+                    <div className="flex gap-4">
+                        <input id="inIcon" placeholder="🎨" className="w-24 p-6 bg-gray-100 rounded-3xl font-black text-center text-3xl border-4 border-transparent focus:border-brand" />
+                        <input id="inProd" placeholder="NOME DO ITEM" className="flex-1 p-6 bg-gray-100 rounded-3xl font-black text-xl border-4 border-transparent focus:border-brand outline-none" />
                     </div>
-                    <input id="inCusto" type="number" placeholder="Custo Unitário (R$)" className="w-full border-2 p-4 rounded-xl text-sm font-bold focus:border-brand outline-none" />
-                    <button onClick={async () => {
-                        const n = document.getElementById('inProd').value;
-                        const i = document.getElementById('inIcon').value;
-                        const c = document.getElementById('inCusto').value;
-                        if(!n) return;
-                        await supabase.from('produtos').insert([{ nome: n, icone: i || '📦', custo: c || 0 }]);
-                        fetchDados();
-                        document.getElementById('inProd').value = '';
-                    }} className="w-full bg-brand text-white font-black p-4 rounded-xl shadow-lg">Cadastrar Item</button>
+                    <input id="inCusto" type="number" placeholder="CUSTO R$" className="w-full p-6 bg-gray-100 rounded-3xl font-black text-xl border-4 border-transparent focus:border-brand outline-none" />
+                    <button onClick={async()=>{
+                        const n=document.getElementById('inProd').value; const i=document.getElementById('inIcon').value; const c=document.getElementById('inCusto').value;
+                        if(!n)return; await supabase.from('produtos').insert([{nome:n, icone:i||'📦', custo:c||0}]); fetchDados();
+                        document.getElementById('inProd').value=''; document.getElementById('inIcon').value=''; document.getElementById('inCusto').value='';
+                    }} className="w-full bg-slate-900 text-white p-6 rounded-[30px] font-black text-xl shadow-2xl uppercase">Salvar Produto</button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-5">
                     {produtosLista.map(p => (
-                        <div key={p.id} className="bg-white p-5 rounded-2xl border text-center relative shadow-sm">
-                            <span className="text-4xl block mb-2">{p.icone}</span>
-                            <p className="font-bold text-xs text-slate-700">{p.nome}</p>
-                            <p className="text-brand text-xs font-black mt-1">{formatarMoeda(p.custo)}</p>
-                            <button onClick={async () => { if(confirm('Remover?')) { await supabase.from('produtos').delete().eq('id', p.id); fetchDados(); } }} className="absolute top-2 right-2 text-red-200 font-bold">×</button>
+                        <div key={p.id} className="bg-white p-8 rounded-[50px] shadow-xl border-4 border-transparent relative flex flex-col items-center">
+                            <span className="text-6xl mb-4">{p.icone}</span>
+                            <span className="font-black text-slate-800 text-center text-xs uppercase tracking-widest leading-tight">{p.nome}</span>
+                            <span className="text-brand font-black text-lg mt-2">{formatarMoeda(p.custo)}</span>
+                            <button onClick={async()=>{if(confirm('Apagar?')){await supabase.from('produtos').delete().eq('id', p.id); fetchDados();}}} className="absolute top-4 right-6 text-red-100 font-black text-2xl p-2">×</button>
                         </div>
                     ))}
                 </div>
             </div>
+            <BottomNav />
           </div>
         );
       }
 
       if (view === 'manager_equipe') {
         return (
-          <div className="flex-1 flex flex-col bg-gray-100">
-            <div className="bg-slate-900 text-white p-6 pt-10 flex justify-between items-center">
-                <h2 className="text-xl font-bold">Equipe</h2>
-                <button onClick={() => setView('dashboard')} className="text-xs bg-slate-800 px-4 py-2 rounded-full text-brand font-bold">VOLTAR</button>
+          <div className="flex-1 flex flex-col bg-gray-100 h-full relative">
+            <div className="bg-slate-900 text-white p-8 pt-14 pb-12 rounded-b-[50px] shadow-lg flex justify-between items-center shrink-0">
+                <h2 className="text-3xl font-black uppercase tracking-tighter">Equipe</h2>
+                <button onClick={()=>setView('dashboard')} className="bg-brand px-6 py-3 rounded-full font-black text-xs shadow-xl active:scale-95">OK</button>
             </div>
-            <div className="p-4 space-y-4">
-                <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-3">
-                    <input id="inName" type="text" placeholder="Nome Completo" className="w-full border-2 p-4 rounded-xl text-sm font-bold outline-none focus:border-brand" />
-                    <select id="inLojaId" className="w-full border-2 p-4 rounded-xl text-sm font-bold bg-white outline-none">
-                        <option value="">Vincular à Unidade...</option>
-                        {lojas.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
+            <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32 hide-scrollbar">
+                <div className="bg-white p-8 rounded-[45px] border-4 border-brand/5 shadow-sm space-y-6">
+                    <input id="inName" placeholder="NOME COMPLETO" className="w-full p-6 bg-gray-100 rounded-3xl font-black text-xl border-4 border-transparent focus:border-brand outline-none" />
+                    <select id="inLojaId" className="w-full p-6 bg-gray-100 rounded-3xl font-black uppercase border-4 border-transparent focus:border-brand outline-none">
+                        <option value="">VINCULAR À LOJA...</option>
+                        {lojas.map(l => <option key={l.id} value={l.id}>{l.nome.toUpperCase()}</option>)}
+                        <option value="">ACESSO GLOBAL (ADMIN)</option>
                     </select>
-                    <select id="inFuncao" className="w-full border-2 p-4 rounded-xl text-sm font-bold bg-white outline-none">
-                        <option value="operacional">Cozinha / Operacional</option>
-                        <option value="gerente">Gerente da Loja</option>
-                        <option value="admin">Administrador Geral</option>
-                    </select>
-                    <button onClick={async () => {
-                        const n = document.getElementById('inName').value;
-                        const l = document.getElementById('inLojaId').value;
-                        const f = document.getElementById('inFuncao').value;
-                        if(!n) return;
-                        await supabase.from('equipe').insert([{ nome: n, loja_id: l || null, funcao: f, avatar: f === 'gerente' ? '👔' : '👨‍🍳' }]);
-                        fetchDados();
-                        document.getElementById('inName').value = '';
-                    }} className="w-full bg-brand text-white font-black p-4 rounded-xl shadow-lg">Criar Acesso</button>
+                    <div className="flex gap-4">
+                        <select id="inFuncao" className="flex-1 p-6 bg-gray-100 rounded-3xl font-black border-4 border-transparent focus:border-brand outline-none">
+                            <option value="operacional">COZINHA</option>
+                            <option value="gerente">GERENTE</option>
+                            <option value="admin">ADMIN</option>
+                        </select>
+                        <input id="inPin" placeholder="PIN" maxLength="4" className="w-28 p-6 bg-gray-100 rounded-3xl font-black text-center text-xl border-4 border-transparent focus:border-brand" />
+                    </div>
+                    <button onClick={async()=>{
+                        const n=document.getElementById('inName').value; const l=document.getElementById('inLojaId').value; const f=document.getElementById('inFuncao').value; const p=document.getElementById('inPin').value;
+                        if(!n)return; await supabase.from('equipe').insert([{nome:n, loja_id:l?parseInt(l):null, funcao:f, codigo:p||null, avatar:f==='gerente'?'👔':(f==='admin'?'🛡️':'👨‍🍳')}]); fetchDados();
+                        document.getElementById('inName').value=''; document.getElementById('inPin').value='';
+                    }} className="w-full bg-slate-900 text-white p-6 rounded-[30px] font-black text-xl shadow-2xl uppercase">Criar Acesso</button>
                 </div>
-                <div className="bg-white rounded-2xl border divide-y shadow-sm">
+                <div className="bg-white rounded-[45px] shadow-xl overflow-hidden divide-y divide-gray-50">
                     {equipe.map(e => (
-                        <div key={e.id} className="p-5 flex justify-between items-center active:bg-gray-50">
-                            <div>
-                                <p className="font-bold text-sm text-slate-800">{e.avatar} {e.nome}</p>
-                                <p className="text-[10px] text-slate-400 uppercase font-black">{e.funcao}</p>
+                        <div key={e.id} className="p-7 flex justify-between items-center active:bg-gray-50">
+                            <div className="flex items-center gap-5">
+                                <span className="text-5xl">{e.avatar}</span>
+                                <div>
+                                    <p className="font-black text-slate-800 text-xl tracking-tighter uppercase">{e.nome}</p>
+                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{e.funcao} • PIN: {e.codigo || '----'}</p>
+                                </div>
                             </div>
-                            <button onClick={async () => { if(confirm('Remover?')) { await supabase.from('equipe').delete().eq('id', e.id); fetchDados(); } }} className="text-red-300 font-bold text-xs">REMOVER</button>
+                            <button onClick={async()=>{if(confirm('Excluir?')){await supabase.from('equipe').delete().eq('id', e.id); fetchDados();}}} className="text-red-200 font-black text-2xl p-4">×</button>
                         </div>
                     ))}
                 </div>
             </div>
+            <BottomNav />
           </div>
         );
       }
+
+      return null;
     }
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
