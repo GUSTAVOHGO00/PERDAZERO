@@ -33,70 +33,30 @@
     const { useState, useEffect, useRef } = React;
 
     // ==========================================
-    // ⚠️ CHAVES DO SUPABASE (COLE AQUI)
+    // ⚠️ SUAS CHAVES DO SUPABASE (CONFIGURADAS)
     // ==========================================
     const SUPABASE_URL = 'https://svibstwhmygwczobybse.supabase.co'; 
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2aWJzdHdobXlnd2N6b2J5YnNlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MDAyNzAsImV4cCI6MjA5MTE3NjI3MH0.nlOAfAfsz7BHs3LkBIBG5xNxVv2i7-BCGgj7uPR7dSg';
 
-    let supabase;
-    try { 
-        if(SUPABASE_URL.includes('http')) {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); 
-        }
-    } 
-    catch (e) { console.error("Erro Supabase:", e); }
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     function App() {
-      // --- CONFIGURAÇÕES DA REDE ---
-      const [lojaNome, setLojaNome] = useState("Roy's Store");
-      const [lojaLogo, setLojaLogo] = useState(null); 
-      
       // --- ESTADOS GLOBAIS ---
-      const [user, setUser] = useState(null); 
       const [view, setView] = useState('select_loja'); 
-      const [flowStep, setFlowStep] = useState(0); 
-      const [loading, setLoading] = useState(false);
-      const [filtroTempo, setFiltroTempo] = useState('hoje'); 
+      const [user, setUser] = useState(null); 
+      const [currentLoja, setCurrentLoja] = useState(null);
+      const [loading, setLoading] = useState(true);
       
-      // --- BANCO DE DADOS (Preenchidos pelo Supabase) ---
       const [lojas, setLojas] = useState([]);
       const [equipe, setEquipe] = useState([]);
       const [produtosLista, setProdutosLista] = useState([]);
       const [historico, setHistorico] = useState([]);
+      
+      const [dashboardLojaFiltro, setDashboardLojaFiltro] = useState('todas');
+      const [flowStep, setFlowStep] = useState(1);
+      const [isSaving, setIsSaving] = useState(false);
 
-      // ==========================================
-      // MOTOR DE LEITURA (Supabase)
-      // ==========================================
-      useEffect(() => {
-        async function fetchDados() {
-            if (!supabase) return;
-            try {
-                const { data: dbLojas } = await supabase.from('lojas').select('*').order('id', { ascending: true });
-                if (dbLojas) setLojas(dbLojas);
-
-                const { data: dbEquipe } = await supabase.from('equipe').select('*').order('id', { ascending: true });
-                if (dbEquipe) setEquipe(dbEquipe);
-
-                const { data: dbProd } = await supabase.from('produtos').select('*').order('id', { ascending: true });
-                if (dbProd) setProdutosLista(dbProd);
-
-                const { data: dbHist } = await supabase.from('historico').select('*').order('timestamp', { ascending: false });
-                if (dbHist) setHistorico(dbHist);
-            } catch (err) {
-                console.error("Erro ao puxar dados:", err);
-            }
-        }
-        fetchDados();
-      }, []);
-
-      // --- ESTADOS DO KIOSK E DASHBOARD ---
-      const [currentLoja, setCurrentLoja] = useState(null);
-      const [pinAttempt, setPinAttempt] = useState('');
-      const [userPendingPin, setUserPendingPin] = useState(null);
-      const [pinError, setPinError] = useState(false);
-      const [dashboardLojaFiltro, setDashboardLojaFiltro] = useState('todas'); 
-
-      // Fluxo Operacional
+      // Estado do Registro
       const [registro, setRegistro] = useState({ foto_arquivo: null, foto_url_local: null, produto: null, qtd: '', unidade: 'un', motivo: null, responsavel: null, observacao: '', custo_unitario: 0, icone: '📦' });
       const [customProductName, setCustomProductName] = useState('');
       const [customProductEmoji, setCustomProductEmoji] = useState('📦');
@@ -105,992 +65,413 @@
       const [showColegasList, setShowColegasList] = useState(false);
       const [selectedColega, setSelectedColega] = useState(null);
       const [observacaoColega, setObservacaoColega] = useState('');
-      const [isUploading, setIsUploading] = useState(false); // NOVO: Estado de loading da foto
       const [fotoModal, setFotoModal] = useState(null);
 
-      // Gestão Produtos
-      const [novoProdNome, setNovoProdNome] = useState('');
-      const [novoProdEmoji, setNovoProdEmoji] = useState('📦');
-      const [novoProdCusto, setNovoProdCusto] = useState('');
-      const [editingProductId, setEditingProductId] = useState(null);
-      const [editProdNome, setEditProdNome] = useState('');
-      const [editProdEmoji, setEditProdEmoji] = useState('');
-      const [editProdCusto, setEditProdCusto] = useState('');
+      useEffect(() => { fetchDados(); }, []);
 
-      // Gestão Equipe
-      const [novoMembroNome, setNovoMembroNome] = useState('');
-      const [novoMembroAvatar, setNovoMembroAvatar] = useState('👨‍🍳');
-      const [novoMembroCodigo, setNovoMembroCodigo] = useState('');
-      const [novoMembroFuncao, setNovoMembroFuncao] = useState('operacional');
-      const [novoMembroLoja, setNovoMembroLoja] = useState('');
-      const [editingMembroId, setEditingMembroId] = useState(null);
-      const [editMembroNome, setEditMembroNome] = useState('');
-      const [editMembroAvatar, setEditMembroAvatar] = useState('👨‍🍳');
-      const [editMembroCodigo, setEditMembroCodigo] = useState('');
-      const [editMembroFuncao, setEditMembroFuncao] = useState('operacional');
+      async function fetchDados() {
+        setLoading(true);
+        const { data: dl } = await supabase.from('lojas').select('*').order('nome');
+        const { data: de } = await supabase.from('equipe').select('*').order('nome');
+        const { data: dp } = await supabase.from('produtos').select('*').order('nome');
+        const { data: dh } = await supabase.from('historico').select('*').order('id', { ascending: false });
+        
+        if(dl) setLojas(dl);
+        if(de) setEquipe(de);
+        if(dp) setProdutosLista(dp);
+        if(dh) setHistorico(dh);
+        setLoading(false);
+      }
 
-      // Gestão Lojas
-      const [novaLojaNome, setNovaLojaNome] = useState('');
-      const [editingLojaId, setEditingLojaId] = useState(null);
-      const [editLojaNome, setEditLojaNome] = useState('');
+      const formatarMoeda = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
-      // Dicionário e Listas
-      const emojiDict = {
-          'carne': '🥩', 'blend': '🥩', 'picanha': '🥩', 'bacon': '🥓', 'file': '🥩',
-          'pao': '🍞', 'pão': '🍞', 'hamburguer': '🍔', 'burger': '🍔',
-          'batata': '🍟', 'frita': '🍟', 'cebola': '🧅', 'onion': '🧅', 'alho': '🧄',
-          'alface': '🥬', 'salada': '🥗', 'tomate': '🍅', 'cenoura': '🥕', 'pepino': '🥒',
-          'queijo': '🧀', 'cheddar': '🧀', 'mussarela': '🧀', 'gorgonzola': '🧀',
-          'frango': '🍗', 'coxinha': '🍗', 'peixe': '🐟', 'camarao': '🍤', 'camarão': '🍤',
-          'ovo': '🥚', 'leite': '🥛', 'sorvete': '🍦', 'refri': '🥤', 'coca': '🥤', 'suco': '🧃', 'refrigerante': '🥤', 'lata': '🥫'
+      const buscarEmoji = (t) => {
+        const dict = {'carne':'🥩','pao':'🍞','batata':'🍟','refri':'🥤','ovo':'🥚','salada':'🥗','frango':'🍗','queijo':'🧀'};
+        const low = t.toLowerCase();
+        for (const [k, e] of Object.entries(dict)) { if(low.includes(k)) return e; }
+        return '📦';
       };
 
-      const motivosLista = [
-        { id: 1, nome: 'Validade Expirada', icone: '📅', cor: 'bg-orange-100 text-orange-600' },
-        { id: 2, nome: 'Estragado / Mofado', icone: '🦠', cor: 'bg-purple-100 text-purple-600' },
-        { id: 3, nome: 'Erro de Preparo', icone: '🔥', cor: 'bg-red-100 text-red-600' },
-        { id: 4, nome: 'Devolvido (Cliente)', icone: '😞', cor: 'bg-blue-100 text-blue-600' },
-        { id: 5, nome: 'Queda no Chão', icone: '👇', cor: 'bg-yellow-100 text-yellow-600' },
-        { id: 6, nome: 'Outro', icone: '➕', cor: 'bg-gray-100 text-gray-600' }
-      ];
-
-      // Referências Gráficos
+      // --- GRÁFICOS ---
       const chartBarRef = useRef(null);
-      const chartDoughnutRef = useRef(null);
       const chartBarInstance = useRef(null);
-      const chartDoughnutInstance = useRef(null);
 
-      // Ícones
-      const IconShield = () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>;
-      const IconDelete = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 5H9l-7 7 7 7h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>;
-      const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>;
-      const IconCameraLg = () => <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>;
-      const IconCameraSm = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>;
-      const IconBack = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg>;
-      const IconDashboard = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>;
-      const IconBox = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg>;
-      const IconUsers = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>;
-      const IconStore = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 7 4.41-2.205a2 2 0 0 1 2 0L12 7l3.59-1.795a2 2 0 0 1 2 0L22 7v14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7Z"></path><path d="M12 22V7"></path><path d="M2 13h20"></path><path d="M2 17h20"></path></svg>;
-      const IconSettings = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
-      const IconUserSelect = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>;
-      const IconLock = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>;
-
-      const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
-
-      const getDadosFiltrados = () => {
-          const agoraTs = Date.now();
-          return historico.filter(item => {
-              const isGlobal = dashboardLojaFiltro === 'todas';
-              if (!isGlobal && item.loja_id !== parseInt(dashboardLojaFiltro)) return false;
-
-              const diffDias = (agoraTs - item.timestamp) / (1000 * 60 * 60 * 24);
-              if (filtroTempo === 'hoje') return diffDias <= 1;
-              if (filtroTempo === 'semana') return diffDias <= 7;
-              if (filtroTempo === 'mes') return diffDias <= 30;
-              return true;
-          });
-      };
-
-      const dadosDashboard = getDadosFiltrados();
-
-      // Gráficos
       useEffect(() => {
-        if (view === 'dashboard') {
-            if (chartBarRef.current) {
-                if (chartBarInstance.current) chartBarInstance.current.destroy(); 
-                const ctxBar = chartBarRef.current.getContext('2d');
-                const perdasPorProduto = {};
-                dadosDashboard.forEach(item => {
-                    const qtdNum = parseFloat(item.qtd.toString().replace(',', '.')) || 0;
-                    perdasPorProduto[item.prod] = (perdasPorProduto[item.prod] || 0) + qtdNum;
-                });
-                chartBarInstance.current = new Chart(ctxBar, {
-                    type: 'bar',
-                    data: { labels: Object.keys(perdasPorProduto).length ? Object.keys(perdasPorProduto) : ['Sem dados'], datasets: [{ label: 'Volume Perdido', data: Object.values(perdasPorProduto).length ? Object.values(perdasPorProduto) : [0], backgroundColor: '#00A86B', borderRadius: 4 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-                });
-            }
+        if (view === 'dashboard' && !loading && chartBarRef.current) {
+            if (chartBarInstance.current) chartBarInstance.current.destroy();
+            const dados = historico.filter(h => dashboardLojaFiltro === 'todas' || h.loja_id === parseInt(dashboardLojaFiltro));
+            const labels = [...new Set(dados.map(d => d.prod))];
+            const valores = labels.map(p => dados.filter(x => x.prod === p).reduce((a,b) => a + Number(b.qtd), 0));
 
-            if (chartDoughnutRef.current) {
-                if (chartDoughnutInstance.current) chartDoughnutInstance.current.destroy();
-                const ctxDoughnut = chartDoughnutRef.current.getContext('2d');
-                const custoPorMotivo = {};
-                dadosDashboard.forEach(item => {
-                    custoPorMotivo[item.motivo] = (custoPorMotivo[item.motivo] || 0) + (item.custo_total || 0);
-                });
-                const coresFixas = ['#f97316', '#ef4444', '#eab308', '#3b82f6', '#a855f7', '#64748b'];
-                chartDoughnutInstance.current = new Chart(ctxDoughnut, {
-                    type: 'doughnut',
-                    data: { labels: Object.keys(custoPorMotivo).length ? Object.keys(custoPorMotivo) : ['Sem dados'], datasets: [{ data: Object.values(custoPorMotivo).length ? Object.values(custoPorMotivo) : [1], backgroundColor: coresFixas, borderWidth: 0 }] },
-                    options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
-                });
-            }
+            chartBarInstance.current = new Chart(chartBarRef.current, {
+                type: 'bar',
+                data: {
+                    labels: labels.length ? labels : ['Sem dados'],
+                    datasets: [{ label: 'Volume', data: valores.length ? valores : [0], backgroundColor: '#00A86B', borderRadius: 5 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
         }
-      }, [view, dadosDashboard]);
+      }, [view, loading, dashboardLojaFiltro, historico]);
 
-      // Navegação
-      const handleSelectUser = (selectedUser) => {
-          if (selectedUser.funcao === 'operacional') {
-              setUser(selectedUser);
-              setView('home_func');
-          } else {
-              setUserPendingPin(selectedUser);
-              setPinAttempt('');
-              setPinError(false);
-              setView('pin_modal');
-          }
-      };
-
-      const handlePinSubmit = () => {
-          if (pinAttempt === userPendingPin.codigo) {
-              setUser(userPendingPin);
-              setView('dashboard');
-              setDashboardLojaFiltro(userPendingPin.loja_id ? userPendingPin.loja_id.toString() : 'todas');
-          } else {
-              setPinError(true);
-              setPinAttempt('');
-          }
-      };
-
-      const resetFlowState = () => {
-          setRegistro({ foto_arquivo: null, foto_url_local: null, produto: null, qtd: '', unidade: 'un', motivo: null, responsavel: null, observacao: '', custo_unitario: 0, icone: '📦' });
-          setCustomProductName(''); setCustomProductEmoji('📦');
-          setIsCustomMotivo(false); setCustomMotivoName('');
-          setShowColegasList(false); setSelectedColega(null); setObservacaoColega('');
-          setFlowStep(1);
-      };
-
-      const buscarEmoji = (textoDigitado) => {
-          const lowerVal = textoDigitado.toLowerCase().trim();
-          let foundEmoji = '📦';
-          for (const [key, emoji] of Object.entries(emojiDict)) {
-              if (lowerVal.includes(key)) { foundEmoji = emoji; break; }
-          }
-          return foundEmoji;
-      };
-
-      const PhotoModal = () => {
-          if (!fotoModal) return null;
-          return (
-              <div className="absolute inset-0 bg-slate-900/95 z-50 flex flex-col items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
-                  <button onClick={() => setFotoModal(null)} className="absolute top-6 right-6 text-white bg-white/10 p-4 rounded-full hover:bg-red-500 transition-colors"><IconDelete/></button>
-                  <div className="bg-white p-2 rounded-2xl shadow-2xl w-full max-w-sm">
-                      <img src={fotoModal} className="w-full h-auto max-h-[60vh] object-cover rounded-xl" alt="Evidência" />
-                  </div>
-                  <p className="text-white mt-6 bg-brand px-6 py-2 rounded-full font-bold tracking-widest text-sm shadow-lg border border-green-400">AUDITORIA VISUAL</p>
-              </div>
-          )
-      };
-
-      const RenderLogo = ({ className, size = 24 }) => {
-          if (lojaLogo) return <img src={lojaLogo} className={`object-contain rounded-full shadow-inner bg-white ${className}`} alt="Logo" style={{width: size, height: size}} />;
-          return <div className={`flex items-center justify-center ${className}`} style={{width: size, height: size}}><IconShield/></div>;
-      };
-
-      const BottomNav = () => (
-          <div className="bg-white border-t border-gray-200 p-2 pb-6 px-2 flex justify-between items-center absolute bottom-0 w-full z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-              <button onClick={() => setView('dashboard')} className={`flex flex-col items-center p-2 flex-1 ${view === 'dashboard' ? 'text-brand' : 'text-slate-400'}`}><IconDashboard/><span className="text-[9px] font-bold uppercase mt-1">Painel</span></button>
-              <button onClick={() => setView('manager_produtos')} className={`flex flex-col items-center p-2 flex-1 ${view === 'manager_produtos' ? 'text-brand' : 'text-slate-400'}`}><IconBox/><span className="text-[9px] font-bold uppercase mt-1">Produtos</span></button>
-              {user?.funcao === 'admin' && <button onClick={() => setView('manager_lojas')} className={`flex flex-col items-center p-2 flex-1 ${view === 'manager_lojas' ? 'text-brand' : 'text-slate-400'}`}><IconStore/><span className="text-[9px] font-bold uppercase mt-1">Unidades</span></button>}
-              <button onClick={() => setView('manager_equipe')} className={`flex flex-col items-center p-2 flex-1 ${view === 'manager_equipe' ? 'text-brand' : 'text-slate-400'}`}><IconUsers/><span className="text-[9px] font-bold uppercase mt-1">Equipe</span></button>
-              {user?.funcao === 'admin' && <button onClick={() => setView('manager_settings')} className={`flex flex-col items-center p-2 flex-1 ${view === 'manager_settings' ? 'text-brand' : 'text-slate-400'}`}><IconSettings/><span className="text-[9px] font-bold uppercase mt-1">Ajustes</span></button>}
-          </div>
-      );
+      if (loading) return <div className="flex-1 flex items-center justify-center bg-slate-900 text-white font-bold">Carregando PerdaZero...</div>;
 
       // ==========================================
-      // TELA 1: SELECIONAR LOJA
+      // COMPONENTES DE VISÃO
       // ==========================================
+
       if (view === 'select_loja') {
+        return (
+          <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center animate-fade-in">
+            <div className="text-center mb-10">
+                <h1 className="text-4xl font-black text-white">Perda<span className="text-brand">Zero</span></h1>
+                <p className="text-slate-400 mt-2">Roy's Store - Controle de Desperdício</p>
+            </div>
+            <div className="space-y-3">
+              {lojas.map(l => (
+                <button key={l.id} onClick={() => { setCurrentLoja(l); setView('select_user'); }} className="w-full bg-slate-800 p-5 rounded-2xl text-white font-bold flex justify-between items-center active:scale-95 border border-slate-700">
+                  {l.nome} <span className="text-2xl">🏪</span>
+                </button>
+              ))}
+              <button onClick={() => { setUser({funcao:'admin', nome: 'Walney'}); setView('dashboard'); }} className="w-full mt-8 border-2 border-dashed border-slate-700 p-4 rounded-2xl text-slate-500 font-bold">Acesso Administrativo</button>
+            </div>
+          </div>
+        );
+      }
+
+      if (view === 'select_user') {
+          const equipeLoja = equipe.filter(e => e.loja_id === currentLoja.id || e.funcao === 'admin');
           return (
-              <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center animate-fade-in">
-                  <div className="text-center mb-10">
-                      <RenderLogo size={80} className="bg-brand text-white mx-auto mb-4" />
-                      <h1 className="text-3xl font-extrabold text-white tracking-tight">Perda<span className="text-brand">Zero</span></h1>
-                      <p className="text-slate-400 mt-2 text-sm">{lojaNome} - Seleção de Unidade</p>
+              <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up">
+                  <div className="bg-brand p-8 text-white rounded-b-[40px] shadow-lg text-center">
+                      <p className="text-green-100 text-xs font-bold uppercase tracking-widest mb-1">{currentLoja.nome}</p>
+                      <h2 className="text-3xl font-black">Quem é você?</h2>
                   </div>
-                  <h2 className="text-white text-xl font-bold mb-4 text-center">Onde você está trabalhando hoje?</h2>
-                  <div className="space-y-3 overflow-y-auto max-h-[40vh] hide-scrollbar">
-                      {lojas.length === 0 && <p className="text-slate-500 text-center text-sm py-4">Nenhuma loja cadastrada ainda.</p>}
-                      {lojas.map(loja => (
-                          <button key={loja.id} onClick={() => { setCurrentLoja(loja); setView('select_user'); }} className="w-full bg-slate-800 border border-slate-700 text-white p-5 rounded-2xl font-bold text-lg hover:bg-brand transition-colors active:scale-95 shadow-lg flex justify-between items-center">
-                              {loja.nome} <span className="text-2xl">🏪</span>
+                  <div className="flex-1 p-6 grid grid-cols-2 gap-4 overflow-y-auto">
+                      {equipeLoja.map(e => (
+                          <button key={e.id} onClick={() => { setUser(e); setView(e.funcao === 'operacional' ? 'home_func' : 'dashboard'); }} className="bg-white border p-6 rounded-3xl flex flex-col items-center shadow-sm active:scale-95">
+                              <span className="text-5xl mb-2">{e.avatar || '👤'}</span>
+                              <span className="font-bold text-slate-700">{e.nome.split(' ')[0]}</span>
                           </button>
                       ))}
                   </div>
-                  <button onClick={() => { setCurrentLoja({id: null, nome: 'Acesso Administrativo'}); setView('select_user'); }} className="w-full mt-6 bg-transparent border-2 border-dashed border-slate-700 text-slate-400 p-4 rounded-2xl font-bold hover:text-white hover:border-slate-500 transition-colors">
-                      Acesso Administrativo
-                  </button>
+                  <button onClick={() => setView('select_loja')} className="p-6 text-slate-400 font-bold text-sm">← Voltar / Trocar Loja</button>
               </div>
           );
       }
 
-      // ==========================================
-      // TELA 2: QUEM É VOCÊ?
-      // ==========================================
-      if (view === 'select_user') {
-          const equipeDaLoja = equipe.filter(e => e.loja_id === currentLoja?.id || e.funcao === 'admin');
-          return (
-              <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up relative">
-                  <div className="bg-brand p-6 pt-10 pb-8 rounded-b-[40px] shadow-lg flex flex-col justify-between text-white text-center">
-                      <p className="text-green-100 text-sm font-bold tracking-widest uppercase mb-1">{currentLoja?.nome || "Painel Geral"}</p>
-                      <h2 className="text-3xl font-black">Quem é você?</h2>
-                  </div>
-                  <div className="flex-1 p-6 overflow-y-auto">
-                      <p className="text-center text-slate-500 font-medium mb-6">Toque no seu nome para continuar</p>
-                      <div className="grid grid-cols-2 gap-4">
-                          {equipeDaLoja.length === 0 && <p className="text-slate-400 col-span-2 text-center py-4">Nenhum funcionário nesta loja.</p>}
-                          {equipeDaLoja.map(membro => (
-                              <button key={membro.id} onClick={() => handleSelectUser(membro)} className="bg-white border border-gray-200 p-6 rounded-3xl flex flex-col items-center shadow-sm hover:border-brand hover:shadow-md active:scale-95 transition-all">
-                                  <div className="text-5xl mb-3 bg-gray-50 p-4 rounded-full shadow-inner">{membro.avatar || '👤'}</div>
-                                  <span className="font-bold text-slate-800 text-lg text-center leading-tight">{membro.nome.split(' ')[0]}</span>
-                                  {membro.funcao !== 'operacional' && <span className="mt-2 text-[9px] bg-slate-800 text-white px-2 py-0.5 rounded-full uppercase flex items-center tracking-wider"><IconLock/> Senha</span>}
-                              </button>
-                          ))}
-                      </div>
-                  </div>
-                  <button onClick={() => setView('select_loja')} className="p-4 text-slate-400 font-bold text-sm text-center w-full">Voltar / Trocar de Loja</button>
-              </div>
-          );
-      }
-
-      // ==========================================
-      // MODAL DE PIN (Para Gerentes/Admins)
-      // ==========================================
-      if (view === 'pin_modal') {
-          return (
-              <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center items-center animate-fade-in">
-                  <div className="bg-white w-full max-w-sm rounded-[40px] p-8 flex flex-col items-center shadow-2xl relative">
-                      <button onClick={() => setView('select_user')} className="absolute top-6 left-6 text-slate-400"><IconBack/></button>
-                      <div className="text-6xl mb-4 mt-2">{userPendingPin.avatar || '👤'}</div>
-                      <h2 className="text-2xl font-bold text-slate-800 mb-1">Olá, {userPendingPin.nome.split(' ')[0]}</h2>
-                      <p className="text-slate-500 text-sm mb-6 font-medium">Digite seu PIN de acesso</p>
-                      
-                      <div className="flex space-x-3 mb-6">
-                        {[0, 1, 2, 3].map((i) => (<div key={i} className={`w-12 h-12 rounded-xl flex items-center justify-center text-3xl font-bold border-2 ${pinAttempt[i] ? 'border-brand text-brand bg-green-50 scale-110' : 'border-gray-200 text-transparent bg-gray-50'} transition-all`}>{pinAttempt[i] || '•'}</div>))}
-                      </div>
-                      
-                      {pinError && <p className="text-red-500 text-xs font-bold mb-4 animate-bounce">PIN Incorreto. Tente novamente.</p>}
-
-                      <div className="grid grid-cols-3 gap-3 w-full">
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (<button key={num} onClick={() => setPinAttempt(pinAttempt + num)} disabled={pinAttempt.length >= 4} className="bg-gray-50 text-slate-800 text-2xl font-bold py-4 rounded-2xl active:bg-gray-200">{num}</button>))}
-                          <button className="bg-transparent"></button>
-                          <button onClick={() => setPinAttempt(pinAttempt + '0')} disabled={pinAttempt.length >= 4} className="bg-gray-50 text-slate-800 text-2xl font-bold py-4 rounded-2xl active:bg-gray-200">0</button>
-                          <button onClick={() => setPinAttempt(pinAttempt.slice(0, -1))} className="bg-red-50 text-red-500 font-bold py-4 rounded-2xl active:bg-red-100 flex items-center justify-center"><IconDelete/></button>
-                      </div>
-                      
-                      <button onClick={handlePinSubmit} disabled={pinAttempt.length !== 4} className={`w-full py-4 mt-6 rounded-2xl font-bold text-white transition-all ${pinAttempt.length === 4 ? 'bg-brand' : 'bg-gray-300'}`}>CONFIRMAR</button>
-                  </div>
-              </div>
-          )
-      }
-
-
-      // ==========================================
-      // TELA 3: HOME DO FUNCIONÁRIO (Modo Cozinha)
-      // ==========================================
       if (view === 'home_func') {
-        return (
-          <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up">
-            <div className="bg-brand p-6 pt-10 pb-10 rounded-b-[40px] shadow-lg flex justify-between items-center text-white relative overflow-hidden">
-               <div className="absolute top-[-20px] right-[-20px] opacity-20 text-brand pointer-events-none"><RenderLogo size={160} /></div>
-               <div className="z-10"><p className="text-green-100 text-sm font-medium">Bom trabalho,</p><h2 className="text-3xl font-bold tracking-tight">{user.nome.split(' ')[0]}</h2></div>
-               <button onClick={() => {setUser(null); setView('select_loja');}} className="p-3 bg-white/20 rounded-full z-10 active:bg-white/30 transition-colors"><IconLogout/></button>
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center p-6">
-                <button onClick={() => { setView('flow'); resetFlowState(); }} className="w-full max-w-xs aspect-square bg-red-50 border-4 border-red-500 rounded-[40px] flex flex-col items-center justify-center text-red-600 active:scale-95 shadow-2xl transition-transform z-10">
-                    <div className="bg-red-500 text-white p-6 rounded-full mb-4 shadow-lg"><IconCameraLg/></div>
-                    <span className="text-2xl font-extrabold uppercase text-center tracking-wide">Fotografar<br/>Perda</span>
-                </button>
-            </div>
-          </div>
-        );
-      }
-
-      // ==========================================
-      // TELA 4: FLUXO DE REGISTRO (5 PASSOS)
-      // ==========================================
-      if (view === 'flow') {
-        
-        const proceedToStep5 = (motivoSelecionado) => {
-            if (motivoSelecionado === 'Outro' && customMotivoName.trim() === '') return;
-            setRegistro({...registro, motivo: motivoSelecionado === 'Outro' ? customMotivoName : motivoSelecionado});
-            setFlowStep(5);
-        };
-
-        const finishFlow = async (nomeResponsavel) => {
-            setIsUploading(true);
-            const qtdNum = parseFloat(registro.qtd.toString().replace(',', '.')) || 0;
-            const custoTotal = qtdNum * registro.custo_unitario;
-            
-            let finalPhotoUrl = null;
-
-            // ---- LÓGICA DE UPLOAD DE FOTO PARA O SUPABASE STORAGE ----
-            if (registro.foto_arquivo && supabase) {
-                const fileExt = registro.foto_arquivo.name.split('.').pop();
-                const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-                
-                // Faz o upload para a pasta 'fotos_perdas'
-                const { error: uploadError } = await supabase.storage.from('fotos_perdas').upload(fileName, registro.foto_arquivo);
-                
-                if (!uploadError) {
-                    // Pega o link público da foto recém-carregada
-                    const { data: publicUrlData } = supabase.storage.from('fotos_perdas').getPublicUrl(fileName);
-                    finalPhotoUrl = publicUrlData.publicUrl;
-                } else {
-                    console.error("Erro no upload da foto:", uploadError);
-                }
-            }
-
-            const dataAtual = new Date();
-            const horaFormatada = dataAtual.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            const horaString = `Hoje, ${horaFormatada}`;
-
-            // ---- SALVANDO NO BANDO DE DADOS ----
-            const objSalvar = {
-                loja_id: currentLoja.id,
-                relator: user.nome,
-                responsavel: nomeResponsavel,
-                prod: registro.produto,
-                qtd: qtdNum,
-                uni: registro.unidade,
-                motivo: registro.motivo,
-                observacao: observacaoColega,
-                hora: horaString,
-                img: registro.icone,
-                custo_total: custoTotal,
-                foto_url: finalPhotoUrl, // URL real da nuvem
-                timestamp: Date.now()
-            };
-
-            if (supabase) {
-                await supabase.from('historico').insert([objSalvar]);
-            }
-
-            const novoReg = { id: Date.now(), ...objSalvar };
-            setHistorico([novoReg, ...historico]);
-            
-            setIsUploading(false);
-            alert('✅ Sucesso! Desperdício registrado.');
-            resetFlowState();
-            setView(user.funcao === 'operacional' ? 'home_func' : 'dashboard');
-        };
-
-        if (isUploading) {
-            return (
-                <div className="flex-1 flex flex-col bg-slate-900 justify-center items-center">
-                    <div className="w-16 h-16 border-4 border-brand border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-white font-bold tracking-widest uppercase">Salvando Registro...</p>
-                </div>
-            )
-        }
-
-        return (
-          <div className="flex-1 flex flex-col bg-white">
-            <div className="p-4 border-b flex items-center shadow-sm z-10">
-              <button onClick={() => { 
-                  if(flowStep === 5 && selectedColega) { setSelectedColega(null); setObservacaoColega(''); return; }
-                  if(flowStep === 5 && showColegasList) { setShowColegasList(false); return; }
-                  if(flowStep === 4 && isCustomMotivo) { setIsCustomMotivo(false); setCustomMotivoName(''); return; }
-                  if(flowStep > 1) setFlowStep(flowStep - 1); else setView(user.funcao === 'operacional' ? 'home_func' : 'dashboard'); 
-              }} className="p-2 text-slate-500"><IconBack/></button>
-              <div className="flex-1 text-center font-bold text-slate-400 text-sm tracking-widest">PASSO {flowStep} DE 5</div><div className="w-10"></div>
-            </div>
-
-            {flowStep === 1 && (
-              <div className="flex-1 flex flex-col items-center justify-center p-6 animate-slide-up text-center">
-                <h3 className="text-2xl font-bold text-slate-800 mb-8">Tire uma foto do item</h3>
-                
-                {registro.foto_url_local ? (
-                    <div className="w-full max-w-xs relative mb-8 rounded-2xl overflow-hidden shadow-lg border-4 border-brand">
-                        <img src={registro.foto_url_local} className="w-full h-48 object-cover" />
-                        <div className="absolute bottom-2 right-2 bg-brand text-white text-xs font-bold px-2 py-1 rounded">Câmera Ativa</div>
-                    </div>
-                ) : (
-                    <div className="w-full max-w-xs h-48 bg-gray-100 rounded-2xl mb-8 flex items-center justify-center border-2 border-dashed border-gray-300 text-gray-400">
-                        <IconCameraLg />
-                    </div>
-                )}
-
-                <label className="w-full py-5 bg-brand text-white font-bold rounded-2xl text-xl flex items-center justify-center shadow-xl active:scale-95 cursor-pointer transition-transform">
-                  <IconCameraSm/> <span className="ml-2">{registro.foto_url_local ? 'Tirar Outra Foto' : 'Abrir Câmera'}</span>
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { 
-                      if(e.target.files && e.target.files[0]) {
-                          const file = e.target.files[0];
-                          const urlLocal = URL.createObjectURL(file);
-                          setRegistro({...registro, foto_arquivo: file, foto_url_local: urlLocal}); 
-                      }
-                  }}/>
-                </label>
-
-                {registro.foto_url_local && (
-                     <button onClick={() => setFlowStep(2)} className="mt-4 w-full py-5 bg-slate-900 text-white font-bold rounded-2xl text-xl shadow-xl active:scale-95 transition-transform animate-fade-in">Avançar com esta foto</button>
-                )}
-
-                <button onClick={() => setFlowStep(2)} className="mt-8 text-slate-400 underline p-2 font-medium">Pular (Sem Foto)</button>
-              </div>
-            )}
-
-            {flowStep === 2 && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50">
-                <h3 className="text-xl font-bold text-slate-800 mb-4">O que está na foto?</h3>
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex gap-3 items-center">
-                    <div className="text-4xl w-16 h-16 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center shadow-inner">{customProductEmoji}</div>
-                    <div className="flex-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Buscar ou Digitar Produto</label>
-                        <input autoFocus placeholder="Ex: Camarão" value={customProductName} onChange={(e) => {setCustomProductName(e.target.value); setCustomProductEmoji(buscarEmoji(e.target.value));}} className="w-full text-lg font-bold text-slate-800 focus:outline-none placeholder:font-normal"/>
-                    </div>
-                </div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Ou escolha da lista:</div>
-                <div className="grid grid-cols-2 gap-3 overflow-y-auto pb-6 hide-scrollbar flex-1">
-                  {produtosLista.map(p => (
-                    <button key={p.id} onClick={() => { setCustomProductName(p.nome); setCustomProductEmoji(p.icone); setRegistro({...registro, produto: p.nome, custo_unitario: p.custo || 0, icone: p.icone}); setFlowStep(3); }} className="bg-white border border-gray-200 p-4 rounded-2xl flex items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
-                        <span className="text-3xl mr-3">{p.icone}</span><span className="font-bold text-slate-700 text-sm text-left leading-tight">{p.nome}</span>
-                    </button>
-                  ))}
-                </div>
-                {customProductName && (
-                    <button onClick={() => { setRegistro({...registro, produto: customProductName, custo_unitario: 0, icone: customProductEmoji}); setFlowStep(3); }} className="w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg mt-4 animate-fade-in">Confirmar: {customProductName}</button>
-                )}
-              </div>
-            )}
-
-            {flowStep === 3 && (
-              <div className="flex-1 flex flex-col p-6 items-center animate-slide-up bg-gray-50">
-                <h3 className="text-lg font-bold text-slate-800 mb-1">Quantidade de</h3><p className="text-brand font-extrabold text-xl mb-6 text-center">{registro.icone} {registro.produto}</p>
-                <div className="flex bg-gray-200 p-1.5 rounded-2xl mb-8 w-full max-w-xs">
-                  <button onClick={()=>setRegistro({...registro, unidade: 'un'})} className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'un' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Unid.</button>
-                  <button onClick={()=>setRegistro({...registro, unidade: 'kg'})} className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'kg' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Kg</button>
-                  <button onClick={()=>setRegistro({...registro, unidade: 'L'})}  className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'L' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Litro</button>
-                </div>
-                <div className="text-6xl font-black text-slate-800 mb-8 h-16 flex items-baseline">{registro.qtd || '0'} <span className="text-2xl text-slate-400 ml-2 font-bold">{registro.unidade}</span></div>
-                <div className="grid grid-cols-3 gap-3 w-full max-w-xs mb-4">
-                  {[1,2,3,4,5,6,7,8,9].map(n => <button key={n} onClick={() => setRegistro({...registro, qtd: registro.qtd + n})} className="bg-white border border-gray-200 text-3xl font-bold py-4 rounded-2xl active:bg-gray-100 shadow-sm">{n}</button>)}
-                  <button onClick={() => { if (!registro.qtd.includes(',')) setRegistro({...registro, qtd: registro.qtd + ','}); }} className="bg-white border border-gray-200 text-3xl font-bold py-4 rounded-2xl active:bg-gray-100 shadow-sm">,</button>
-                  <button onClick={() => setRegistro({...registro, qtd: registro.qtd + '0'})} className="bg-white border border-gray-200 text-3xl font-bold py-4 rounded-2xl active:bg-gray-100 shadow-sm">0</button>
-                  <button onClick={() => setRegistro({...registro, qtd: registro.qtd.slice(0,-1)})} className="bg-red-50 border border-red-100 text-red-500 py-4 rounded-2xl flex justify-center items-center shadow-sm active:bg-red-100"><IconDelete/></button>
-                </div>
-                <button onClick={()=>setFlowStep(4)} disabled={!registro.qtd} className={`mt-auto w-full max-w-xs py-4 rounded-2xl font-bold text-white text-lg transition-all ${registro.qtd ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>AVANÇAR</button>
-              </div>
-            )}
-
-            {flowStep === 4 && !isCustomMotivo && (
-              <div className="flex-1 flex flex-col p-4 animate-slide-up bg-gray-50">
-                <h3 className="text-xl font-bold text-slate-800 mb-1 px-2">Por que foi perdido?</h3>
-                <p className="text-slate-500 text-sm mb-6 px-2">Selecione o motivo.</p>
-                <div className="grid grid-cols-2 gap-3 pb-6 px-2">
-                  {motivosLista.map(m => (
-                    <button key={m.id} onClick={() => { m.nome === 'Outro' ? setIsCustomMotivo(true) : proceedToStep5(m.nome); }} className="bg-white border border-gray-200 p-5 rounded-3xl flex flex-col items-center shadow-sm active:scale-95 transition-transform"><div className={`w-14 h-14 rounded-full flex items-center justify-center text-3xl mb-3 shadow-inner ${m.cor}`}>{m.icone}</div><span className="font-bold text-slate-700 text-sm text-center">{m.nome}</span></button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {flowStep === 4 && isCustomMotivo && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50">
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Descrever Motivo</h3>
-                <textarea autoFocus placeholder="Ex: A geladeira desligou..." value={customMotivoName} onChange={(e) => setCustomMotivoName(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32"></textarea>
-                <button onClick={() => proceedToStep5('Outro')} disabled={customMotivoName.trim() === ''} className={`w-full py-4 rounded-2xl font-bold text-white text-lg transition-all ${customMotivoName.trim() !== '' ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>Avançar</button>
-              </div>
-            )}
-
-            {/* PASSO 5 - RESPONSABILIDADE */}
-            {flowStep === 5 && !showColegasList && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 items-center justify-center text-center">
-                <h3 className="text-3xl font-black text-slate-800 mb-2">Você sabe quem foi?</h3>
-                <p className="text-slate-500 font-medium mb-8">Fique tranquilo(a)! Se você apontar um colega, essa informação é confidencial e só a gerência verá.</p>
-                
-                <div className="w-full max-w-xs space-y-4">
-                    <button onClick={() => finishFlow(user.nome)} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-slate-700 text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
-                        🙋‍♂️ Fui eu mesmo
-                    </button>
-                    <button onClick={() => finishFlow('Não identificado')} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-slate-700 text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
-                        🤷‍♂️ Não sei / Achei assim
-                    </button>
-                    <button onClick={() => setShowColegasList(true)} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-brand text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
-                        Foi outra pessoa...
-                    </button>
-                </div>
-              </div>
-            )}
-
-            {flowStep === 5 && showColegasList && !selectedColega && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50">
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Selecione o Colega:</h3>
-                <p className="text-slate-500 text-sm mb-6">Esta informação é confidencial.</p>
-
-                <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-6 hide-scrollbar flex-1">
-                  {equipe.filter(e => e.loja_id === currentLoja.id).map(c => (
-                    <button key={c.id} onClick={() => setSelectedColega(c.nome)} className="bg-white border border-gray-200 p-4 rounded-2xl flex flex-col items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
-                        <span className="text-4xl mb-2">{c.avatar || '👤'}</span>
-                        <span className="font-bold text-slate-700 text-sm text-center">{c.nome.split(' ')[0]}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {flowStep === 5 && selectedColega && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50">
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Responsável: {selectedColega.split(' ')[0]}</h3>
-                <p className="text-slate-500 text-sm mb-6">Quer adicionar alguma observação? (Opcional)</p>
-                
-                <textarea autoFocus placeholder="Ex: Deixou a porta do freezer aberta..." value={observacaoColega} onChange={(e) => setObservacaoColega(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32"></textarea>
-                
-                <button onClick={() => finishFlow(selectedColega)} className="w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg mt-auto">Finalizar Registro</button>
-              </div>
-            )}
-          </div>
-        );
-      }
-
-      // ==========================================
-      // TELA GERENTE: DASHBOARD COMPLETO
-      // ==========================================
-      if (view === 'dashboard') {
-        const totalPrejuizo = dadosDashboard.reduce((acc, curr) => acc + (curr.custo_total || 0), 0);
-
-        const rankingCulpados = {};
-        dadosDashboard.forEach(item => {
-            if (item.responsavel !== 'Não identificado') {
-                rankingCulpados[item.responsavel] = (rankingCulpados[item.responsavel] || 0) + (item.custo_total || 0);
-            }
-        });
-        const topFuncionarios = Object.entries(rankingCulpados).sort((a,b)=>b[1]-a[1]).slice(0,3);
-
-        const rankingProd = {};
-        dadosDashboard.forEach(item => rankingProd[item.prod] = (rankingProd[item.prod] || 0) + (item.custo_total || 0));
-        const topProdutos = Object.entries(rankingProd).sort((a,b)=>b[1]-a[1]).slice(0,3);
-
-        return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full">
-            <PhotoModal />
-            <div className="bg-slate-900 text-white p-6 pt-10 flex flex-col shadow-md z-10">
-               <div className="flex justify-between items-center mb-4">
-                 <div><p className="text-brand text-[10px] font-bold tracking-widest mb-1 uppercase">Painel {user.funcao}</p><h2 className="text-xl font-bold">{lojaNome}</h2></div>
-                 <button onClick={() => {setUser(null); setView('select_loja');}} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700"><IconLogout/></button>
-               </div>
-               
-               {user.funcao === 'admin' && (
-                  <div className="mb-3">
-                      <select value={dashboardLojaFiltro} onChange={(e) => setDashboardLojaFiltro(e.target.value)} className="w-full bg-slate-800 text-white p-2.5 rounded-xl text-sm font-bold border border-slate-700 outline-none">
-                          <option value="todas">🌐 Visão Global (Todas as Lojas)</option>
-                          {lojas.map(l => <option key={l.id} value={l.id}>🏪 {l.nome}</option>)}
-                      </select>
+          return (
+              <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up">
+                  <div className="bg-brand p-8 text-white rounded-b-[40px] shadow-lg flex justify-between items-center">
+                      <div><p className="text-green-100 text-xs font-bold">BOM TRABALHO,</p><h2 className="text-2xl font-black">{user.nome.split(' ')[0]}</h2></div>
+                      <button onClick={() => setView('select_user')} className="bg-white/20 p-3 rounded-full">Logout</button>
                   </div>
-               )}
+                  <div className="flex-1 flex flex-col items-center justify-center p-6">
+                      <button onClick={() => { setFlowStep(1); setView('flow'); }} className="w-full max-w-xs aspect-square bg-red-50 border-4 border-red-500 rounded-[50px] flex flex-col items-center justify-center text-red-600 active:scale-95 shadow-2xl">
+                          <span className="text-6xl mb-4">📸</span>
+                          <span className="text-2xl font-black uppercase text-center">Fotografar<br/>Perda</span>
+                      </button>
+                  </div>
+              </div>
+          );
+      }
 
-               <div className="flex bg-slate-800 p-1 rounded-xl w-full">
-                  <button onClick={() => setFiltroTempo('hoje')} className={`flex-1 py-1.5 font-bold rounded-lg text-xs transition-colors ${filtroTempo === 'hoje' ? 'bg-slate-700 shadow-sm text-white' : 'text-slate-400'}`}>Hoje</button>
-                  <button onClick={() => setFiltroTempo('semana')} className={`flex-1 py-1.5 font-bold rounded-lg text-xs transition-colors ${filtroTempo === 'semana' ? 'bg-slate-700 shadow-sm text-white' : 'text-slate-400'}`}>Semana</button>
-                  <button onClick={() => setFiltroTempo('mes')} className={`flex-1 py-1.5 font-bold rounded-lg text-xs transition-colors ${filtroTempo === 'mes' ? 'bg-slate-700 shadow-sm text-white' : 'text-slate-400'}`}>Mês</button>
-               </div>
+      if (view === 'flow') {
+          const finishFlow = async (nomeResp) => {
+              setIsSaving(true);
+              const qtdNum = parseFloat(registro.qtd.toString().replace(',', '.')) || 0;
+              const custoT = qtdNum * registro.custo_unitario;
+              
+              let finalPhotoUrl = null;
+              if (registro.foto_arquivo) {
+                  const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+                  const { data: upData } = await supabase.storage.from('fotos_perdas').upload(fileName, registro.foto_arquivo);
+                  if(upData) {
+                      const { data: pub } = supabase.storage.from('fotos_perdas').getPublicUrl(fileName);
+                      finalPhotoUrl = pub.publicUrl;
+                  }
+              }
+
+              const { error } = await supabase.from('historico').insert([{
+                  loja_id: currentLoja.id, relator: user.nome, responsavel: nomeResp, prod: registro.produto,
+                  qtd: qtdNum, uni: registro.unidade, motivo: registro.motivo, observacao: observacaoColega,
+                  hora: new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+                  img: registro.icone, custo_total: custoT, foto_url: finalPhotoUrl, timestamp: Date.now()
+              }]);
+
+              setIsSaving(false);
+              alert('✅ Registro salvo!');
+              fetchDados();
+              setView('home_func');
+              setRegistro({ foto_arquivo: null, foto_url_local: null, produto: null, qtd: '', unidade: 'un', motivo: null, responsavel: null, observacao: '', custo_unitario: 0, icone: '📦' });
+          };
+
+          if (isSaving) return <div className="flex-1 flex flex-col items-center justify-center bg-slate-900 text-white"><div className="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin mb-4"></div>Salvando...</div>;
+
+          return (
+              <div className="flex-1 flex flex-col bg-white">
+                  <div className="p-4 border-b flex justify-between items-center text-slate-400 font-bold text-xs uppercase tracking-widest">
+                      <button onClick={() => setView('home_func')}>X Sair</button>
+                      <span>Passo {flowStep} de 5</span>
+                      <div className="w-10"></div>
+                  </div>
+
+                  {flowStep === 1 && (
+                      <div className="flex-1 p-6 flex flex-col items-center justify-center text-center animate-slide-up">
+                          <h3 className="text-2xl font-black mb-8">Tire uma foto do item</h3>
+                          <label className="w-full py-6 bg-brand text-white font-black rounded-3xl text-xl shadow-xl flex items-center justify-center gap-2">
+                              📷 Abrir Câmera
+                              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e)=>{
+                                  if(e.target.files[0]) {
+                                      setRegistro({...registro, foto_arquivo: e.target.files[0], foto_url_local: URL.createObjectURL(e.target.files[0])});
+                                      setFlowStep(2);
+                                  }
+                              }} />
+                          </label>
+                          <button onClick={()=>setFlowStep(2)} className="mt-8 text-slate-400 underline font-bold">Pular Foto</button>
+                      </div>
+                  )}
+
+                  {flowStep === 2 && (
+                      <div className="flex-1 p-6 flex flex-col animate-slide-up bg-gray-50">
+                          <h3 className="text-xl font-black mb-4">O que é isso?</h3>
+                          <input autoFocus placeholder="Ex: Tomate" value={customProductName} onChange={(e)=>{setCustomProductName(e.target.value); setCustomProductEmoji(buscarEmoji(e.target.value));}} className="w-full p-5 rounded-2xl border-2 border-brand font-bold text-lg mb-4 focus:outline-none shadow-sm" />
+                          <div className="grid grid-cols-2 gap-3 overflow-y-auto hide-scrollbar">
+                              {produtosLista.map(p => (
+                                  <button key={p.id} onClick={()=>{setRegistro({...registro, produto: p.nome, icone: p.icone, custo_unitario: p.custo}); setFlowStep(3);}} className="bg-white border p-4 rounded-2xl flex items-center gap-3 shadow-sm active:bg-green-50">
+                                      <span className="text-2xl">{p.icone}</span><span className="font-bold text-slate-700 text-sm">{p.nome}</span>
+                                  </button>
+                              ))}
+                          </div>
+                          {customProductName && <button onClick={()=>{setRegistro({...registro, produto: customProductName, icone: customProductEmoji, custo_unitario:0}); setFlowStep(3);}} className="mt-4 w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg">Confirmar: {customProductName}</button>}
+                      </div>
+                  )}
+
+                  {flowStep === 3 && (
+                      <div className="flex-1 p-6 flex flex-col items-center animate-slide-up bg-gray-50">
+                          <h3 className="text-xl font-black mb-1">Qual a quantidade?</h3>
+                          <p className="text-brand font-black text-2xl mb-8">{registro.icone} {registro.produto}</p>
+                          <div className="text-7xl font-black text-slate-800 mb-8">{registro.qtd || '0'}<span className="text-xl text-slate-400 ml-2">{registro.unidade}</span></div>
+                          <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
+                              {[1,2,3,4,5,6,7,8,9].map(n => <button key={n} onClick={()=>setRegistro({...registro, qtd: registro.qtd + n})} className="bg-white p-5 rounded-2xl font-black text-2xl shadow-sm active:bg-gray-100">{n}</button>)}
+                              <button onClick={()=>setRegistro({...registro, qtd: registro.qtd + ','})} className="bg-white p-5 rounded-2xl font-black text-2xl shadow-sm">,</button>
+                              <button onClick={()=>setRegistro({...registro, qtd: registro.qtd + '0'})} className="bg-white p-5 rounded-2xl font-black text-2xl shadow-sm">0</button>
+                              <button onClick={()=>setRegistro({...registro, qtd: registro.qtd.slice(0,-1)})} className="bg-red-50 text-red-500 p-5 rounded-2xl font-black text-2xl shadow-sm">←</button>
+                          </div>
+                          <button onClick={()=>setFlowStep(4)} disabled={!registro.qtd} className={`mt-auto w-full py-5 rounded-3xl font-black text-xl text-white ${registro.qtd ? 'bg-brand' : 'bg-gray-300'}`}>AVANÇAR</button>
+                      </div>
+                  )}
+
+                  {flowStep === 4 && (
+                      <div className="flex-1 p-6 animate-slide-up bg-gray-50">
+                          <h3 className="text-2xl font-black mb-6">Por que foi perdido?</h3>
+                          <div className="grid grid-cols-2 gap-4">
+                              {motivosLista.map(m => (
+                                  <button key={m.id} onClick={()=>{setRegistro({...registro, motivo: m.nome}); setFlowStep(5);}} className="bg-white p-6 rounded-3xl flex flex-col items-center shadow-sm border active:border-brand">
+                                      <span className="text-4xl mb-2">{m.icone}</span><span className="font-bold text-slate-700 text-sm">{m.nome}</span>
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+
+                  {flowStep === 5 && (
+                      <div className="flex-1 p-6 flex flex-col items-center justify-center text-center animate-slide-up bg-gray-50">
+                          <h3 className="text-3xl font-black mb-2">Você sabe quem foi?</h3>
+                          <p className="text-slate-500 mb-10 text-sm">Fique tranquilo(a)! Esta informação é sigilosa e ajuda na gestão da cozinha.</p>
+                          <div className="w-full space-y-4">
+                              <button onClick={()=>finishFlow(user.nome)} className="w-full py-5 bg-white border rounded-3xl font-black text-slate-700 text-lg shadow-sm">🙋‍♂️ Fui eu mesmo</button>
+                              <button onClick={()=>finishFlow('Não identificado')} className="w-full py-5 bg-white border rounded-3xl font-black text-slate-700 text-lg shadow-sm">🤷‍♂️ Não sei / Achei assim</button>
+                              <button onClick={()=>setShowColegasList(true)} className="w-full py-5 bg-white border rounded-3xl font-black text-brand text-lg shadow-sm">Foi outra pessoa...</button>
+                          </div>
+                          {showColegasList && (
+                              <div className="absolute inset-0 bg-white p-6 animate-slide-up z-20 flex flex-col">
+                                  <h3 className="text-xl font-black mb-4">Selecione o Colega:</h3>
+                                  <div className="grid grid-cols-2 gap-3 overflow-y-auto">
+                                      {equipe.filter(e => e.loja_id === currentLoja.id).map(c => (
+                                          <button key={c.id} onClick={()=>{setSelectedColega(c.nome); finishFlow(c.nome);}} className="bg-gray-50 p-4 rounded-2xl flex flex-col items-center border">
+                                              <span className="text-3xl mb-1">{c.avatar}</span><span className="font-bold text-xs">{c.nome}</span>
+                                          </button>
+                                      ))}
+                                  </div>
+                                  <button onClick={()=>setShowColegasList(false)} className="mt-auto p-4 font-bold text-slate-400">Cancelar</button>
+                              </div>
+                          )}
+                      </div>
+                  )}
+              </div>
+          );
+      }
+
+      if (view === 'dashboard') {
+        const dadosF = historico.filter(h => dashboardLojaFiltro === 'todas' || h.loja_id === parseInt(dashboardLojaFiltro));
+        const totalP = dadosF.reduce((a,b) => a + (Number(b.custo_total) || 0), 0);
+        return (
+          <div className="flex-1 flex flex-col bg-gray-100 overflow-hidden relative">
+            <div className="bg-slate-900 text-white p-6 pt-10">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Painel Gerencial</h2>
+                    <button onClick={() => setView('select_loja')} className="p-2 bg-slate-800 rounded-full">🚪</button>
+                </div>
+                <select value={dashboardLojaFiltro} onChange={(e) => setDashboardLojaFiltro(e.target.value)} className="w-full bg-slate-800 p-3 rounded-xl text-xs font-bold mb-4 border border-slate-700">
+                    <option value="todas">🌐 Visão Global (Todas as Lojas)</option>
+                    {lojas.map(l => <option key={l.id} value={l.id}>🏪 {l.nome}</option>)}
+                </select>
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-slate-800 p-4 rounded-xl border-l-4 border-brand">
+                        <p className="text-slate-400 text-[10px] uppercase font-bold">Prejuízo</p>
+                        <p className="text-xl font-black">{formatarMoeda(totalP)}</p>
+                    </div>
+                    <div className="bg-slate-800 p-4 rounded-xl border-l-4 border-red-500">
+                        <p className="text-slate-400 text-[10px] uppercase font-bold">Itens</p>
+                        <p className="text-xl font-black">{dadosF.length}</p>
+                    </div>
+                </div>
             </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-red-500"><p className="text-slate-400 text-[10px] font-bold tracking-wider uppercase mb-1">Itens Perdidos</p><p className="text-2xl font-black text-slate-800">{dadosDashboard.length}</p></div>
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-brand"><p className="text-slate-400 text-[10px] font-bold tracking-wider uppercase mb-1">Prejuízo (R$)</p><p className="text-2xl font-black text-slate-800">{formatarMoeda(totalPrejuizo).replace('R$', '').trim()}</p></div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-28 hide-scrollbar">
+                <div className="bg-white p-4 rounded-2xl shadow-sm border h-52">
+                    <canvas ref={chartBarRef}></canvas>
                 </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Top 3: Causadores</h3>
-                        <div className="space-y-2">
-                        {topFuncionarios.length === 0 ? <p className="text-xs text-slate-400">Sem dados no período</p> : topFuncionarios.map((f, i) => (
-                            <div key={i} className="flex justify-between items-center"><span className="text-xs font-bold text-slate-800 truncate pr-2">#{i+1} {f[0].split(' ')[0]}</span><span className="text-[10px] text-red-500 font-bold">{formatarMoeda(f[1])}</span></div>
-                        ))}
-                        </div>
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Top 3: Produtos</h3>
-                        <div className="space-y-2">
-                        {topProdutos.length === 0 ? <p className="text-xs text-slate-400">Sem dados no período</p> : topProdutos.map((p, i) => (
-                            <div key={i} className="flex justify-between items-center"><span className="text-xs font-bold text-slate-800 truncate pr-2">#{i+1} {p[0]}</span><span className="text-[10px] text-red-500 font-bold">{formatarMoeda(p[1])}</span></div>
-                        ))}
-                        </div>
-                    </div>
-                </div>
-                
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Prejuízo (R$) por Categoria</h3>
-                    <div className="chart-container"><canvas ref={chartDoughnutRef}></canvas></div>
-                </div>
-
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Volume Perdido por Produto</h3>
-                    <div className="chart-container"><canvas ref={chartBarRef}></canvas></div>
-                </div>
-
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-4">
-                     <div className="p-4 border-b border-gray-50 bg-gray-50 flex justify-between items-center"><h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Auditoria de Registros</h3></div>
-                     <div className="divide-y divide-gray-50">
-                     {dadosDashboard.length === 0 ? <p className="p-6 text-center text-slate-400 font-medium">Nenhum registro no período.</p> : 
-                      dadosDashboard.map(item => {
-                          const lojaDoRegistro = lojas.find(l => l.id === item.loja_id)?.nome || "Remoto";
-                          const isAnonimo = item.responsavel === 'Não identificado';
-                          return (
-                            <div key={item.id} className="p-4 flex gap-3">
-                                {item.foto_url && (
-                                    <button onClick={() => setFotoModal(item.foto_url)} className="relative w-12 h-12 bg-gray-100 rounded-xl overflow-hidden shadow-inner border border-gray-200 flex-shrink-0 active:scale-95 transition-transform group">
-                                        <img src={item.foto_url} className="w-full h-full object-cover opacity-60 group-hover:opacity-30 transition-opacity" />
-                                        <div className="absolute inset-0 flex items-center justify-center text-slate-800"><IconCameraSm/></div>
-                                    </button>
-                                )}
-                                <div className="flex-1 overflow-hidden">
-                                    <div className="flex justify-between items-start">
-                                        <p className="font-bold text-sm text-slate-800 truncate">{item.img} {item.prod} <span className="text-brand text-xs">({item.qtd}{item.uni})</span></p>
-                                        <div className="text-xs font-black text-slate-800">{formatarMoeda(item.custo_total)}</div>
-                                    </div>
-                                    <p className="text-[10px] text-red-500 font-bold mt-1 bg-red-50 inline-block px-1 rounded truncate">{item.motivo}</p>
-                                    
-                                    <div className="mt-2 bg-gray-50 p-2 rounded border border-gray-100">
-                                        <p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Responsável (Causa): <span className={isAnonimo ? "text-orange-500" : "text-slate-800"}>{item.responsavel}</span></p>
-                                        <p className="text-[9px] text-slate-400 mb-1">Registrado por {item.relator} • {item.hora} • {lojaDoRegistro}</p>
-                                        {item.observacao && (
-                                            <div className="bg-yellow-50 border border-yellow-100 p-1.5 rounded mt-1">
-                                                <p className="text-[10px] text-yellow-800 italic">"{item.observacao}"</p>
-                                            </div>
-                                        )}
-                                    </div>
+                <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+                    <div className="p-4 border-b bg-gray-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Auditoria de Registros</div>
+                    <div className="divide-y">
+                        {dadosF.map(h => (
+                            <div key={h.id} className="p-4 flex justify-between items-center active:bg-gray-50">
+                                <div>
+                                    <p className="font-bold text-sm text-slate-800">{h.img} {h.prod} ({h.qtd}{h.uni})</p>
+                                    <p className="text-[10px] text-slate-400 uppercase font-medium">{h.responsavel} • Por {h.relator}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-black text-red-500 text-sm">{formatarMoeda(h.custo_total)}</p>
+                                    <p className="text-[9px] text-slate-300 font-bold">{h.hora}</p>
                                 </div>
                             </div>
-                          )
-                      })}
-                     </div>
+                        ))}
+                    </div>
                 </div>
             </div>
-            <BottomNav />
+            <div className="absolute bottom-0 w-full bg-white border-t flex justify-around p-2 pb-8 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]">
+                <button onClick={() => setView('dashboard')} className="flex flex-col items-center text-brand font-bold text-[9px]">📊<br/>PAINEL</button>
+                <button onClick={() => setView('manager_produtos')} className="flex flex-col items-center text-slate-300 font-bold text-[9px]">📦<br/>PRODUTOS</button>
+                <button onClick={() => setView('manager_lojas')} className="flex flex-col items-center text-slate-300 font-bold text-[9px]">🏪<br/>LOJAS</button>
+                <button onClick={() => setView('manager_equipe')} className="flex flex-col items-center text-slate-300 font-bold text-[9px]">👥<br/>EQUIPE</button>
+            </div>
           </div>
         );
       }
 
-      // ==========================================
-      // TELA GERENTE: UNIDADES (LOJAS)
-      // ==========================================
       if (view === 'manager_lojas') {
-        const handleAddLoja = () => {
-          if(!novaLojaNome.trim()) return;
-          const objNovo = { nome: novaLojaNome };
-          if (supabase) { supabase.from('lojas').insert([objNovo]).then(); }
-          setLojas([{ id: Date.now(), ...objNovo }, ...lojas]);
-          setNovaLojaNome('');
-        };
-
-        const startEditingLoja = (l) => { setEditingLojaId(l.id); setEditLojaNome(l.nome); };
-        const handleSaveEditLoja = (id) => { 
-            if (supabase) { supabase.from('lojas').update({nome: editLojaNome}).eq('id', id).then(); }
-            setLojas(lojas.map(l => l.id === id ? { ...l, nome: editLojaNome } : l)); setEditingLojaId(null); 
-        };
-        const handleDeleteLoja = (id) => { 
-            if(window.confirm('Excluir esta unidade?')) { 
-                if (supabase) { supabase.from('lojas').delete().eq('id', id).then(); }
-                setLojas(lojas.filter(l => l.id !== id)); setEditingLojaId(null); 
-            } 
-        };
-
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full">
-            <div className="bg-slate-900 text-white p-6 pt-10 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Unidades Operacionais</h2></div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
-                
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6">
-                    <h3 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">Cadastrar Nova Unidade</h3>
-                    <input type="text" value={novaLojaNome} onChange={e => setNovaLojaNome(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold text-slate-800 focus:border-brand focus:outline-none mb-4" placeholder="Ex: Loja Sul" />
-                    <button onClick={handleAddLoja} disabled={!novaLojaNome.trim()} className={`w-full font-bold p-3 rounded-xl shadow-md transition-colors ${novaLojaNome.trim() ? 'bg-brand text-white active:bg-green-600' : 'bg-gray-200 text-gray-400'}`}>Cadastrar Loja</button>
+          <div className="flex-1 flex flex-col bg-gray-100">
+            <div className="bg-slate-900 text-white p-6 pt-10 flex justify-between items-center">
+                <h2 className="text-xl font-bold">Lojas</h2>
+                <button onClick={() => setView('dashboard')} className="text-xs bg-slate-800 px-4 py-2 rounded-full text-brand font-bold shadow-lg">VOLTAR</button>
+            </div>
+            <div className="p-4 space-y-4">
+                <div className="bg-white p-5 rounded-2xl border shadow-sm">
+                    <input id="inLoja" type="text" placeholder="Nome da Unidade" className="w-full border-2 p-4 rounded-xl mb-3 text-sm font-bold focus:border-brand outline-none" />
+                    <button onClick={async () => {
+                        const n = document.getElementById('inLoja').value;
+                        if(!n) return;
+                        await supabase.from('lojas').insert([{ nome: n }]);
+                        fetchDados();
+                        document.getElementById('inLoja').value = '';
+                    }} className="w-full bg-brand text-white font-black p-4 rounded-xl shadow-lg active:scale-95 transition-transform">Salvar Unidade</button>
                 </div>
-
-                <div className="space-y-3">
-                  {lojas.map(l => {
-                    if (editingLojaId === l.id) {
-                        return (
-                            <div key={l.id} className="bg-white border-2 border-brand p-4 rounded-2xl flex flex-col shadow-lg animate-slide-up z-10">
-                                <input value={editLojaNome} onChange={e=>setEditLojaNome(e.target.value)} className="font-bold text-slate-700 text-sm mb-3 border-b focus:border-brand focus:outline-none" placeholder="Nome da Loja" />
-                                <div className="flex justify-between">
-                                    <button onClick={() => handleDeleteLoja(l.id)} className="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-100"><IconDelete/></button>
-                                    <button onClick={() => handleSaveEditLoja(l.id)} className="bg-brand text-white py-2 px-6 rounded-lg font-bold text-xs">Salvar</button>
-                                </div>
-                            </div>
-                        )
-                    } else {
-                        return (
-                            <div key={l.id} className="bg-white border border-gray-100 p-4 rounded-2xl flex items-center justify-between shadow-sm">
-                              <div>
-                                  <p className="font-bold text-slate-800 text-sm flex items-center">🏪 {l.nome}</p>
-                              </div>
-                              <button onClick={() => startEditingLoja(l)} className="text-slate-400 hover:text-brand p-3 bg-gray-50 rounded-full shadow-sm active:scale-95 transition-transform"><IconEdit/></button>
-                            </div>
-                        )
-                    }
-                  })}
+                <div className="bg-white rounded-2xl border divide-y overflow-hidden shadow-sm">
+                    {lojas.map(l => (
+                        <div key={l.id} className="p-5 flex justify-between items-center">
+                            <span className="font-bold text-slate-700">🏪 {l.nome}</span>
+                            <button onClick={async () => { if(confirm('Excluir?')) { await supabase.from('lojas').delete().eq('id', l.id); fetchDados(); } }} className="text-red-400 text-[10px] font-black tracking-widest">EXCLUIR</button>
+                        </div>
+                    ))}
                 </div>
             </div>
-            <BottomNav />
           </div>
         );
       }
 
-      // ==========================================
-      // TELA GERENTE: PRODUTOS
-      // ==========================================
       if (view === 'manager_produtos') {
-        const handleAddProduct = () => {
-          if(novoProdNome.trim() === '') return;
-          const custoNum = parseFloat(novoProdCusto.replace(',', '.')) || 0;
-          const objNovo = { nome: novoProdNome, icone: novoProdEmoji || '📦', custo: custoNum };
-          
-          if (supabase) { supabase.from('produtos').insert([objNovo]).then(); }
-          
-          setProdutosLista([{ id: Date.now(), ...objNovo }, ...produtosLista]);
-          setNovoProdNome(''); setNovoProdEmoji('📦'); setNovoProdCusto('');
-        };
-
-        const startEditing = (prod) => { setEditingProductId(prod.id); setEditProdNome(prod.nome); setEditProdEmoji(prod.icone); setEditProdCusto(prod.custo.toString().replace('.', ',')); };
-        const handleSaveEdit = (id) => { 
-            const custoNum = parseFloat(editProdCusto.replace(',', '.')) || 0; 
-            const objSalvar = { nome: editProdNome, icone: editProdEmoji || '📦', custo: custoNum };
-            
-            if (supabase) { supabase.from('produtos').update(objSalvar).eq('id', id).then(); }
-            
-            setProdutosLista(produtosLista.map(p => p.id === id ? { ...p, ...objSalvar } : p)); 
-            setEditingProductId(null); 
-        };
-        const handleDeleteProduct = (id) => { 
-            if(window.confirm('Excluir item permanentemente?')) { 
-                if (supabase) { supabase.from('produtos').delete().eq('id', id).then(); }
-                setProdutosLista(produtosLista.filter(p => p.id !== id)); 
-                setEditingProductId(null); 
-            } 
-        };
-
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full">
-            <div className="bg-slate-900 text-white p-6 pt-10 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Cardápio de Perdas</h2></div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
-                
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">Adicionar Novo</h3>
-                    <div className="flex gap-2 mb-3">
-                        <div className="w-16"><input type="text" maxLength="2" value={novoProdEmoji} onChange={e => setNovoProdEmoji(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-center text-2xl focus:border-brand focus:outline-none" placeholder="🍅" /></div>
-                        <div className="flex-1"><input type="text" value={novoProdNome} onChange={e => {setNovoProdNome(e.target.value); setNovoProdEmoji(buscarEmoji(e.target.value));}} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold text-slate-800 focus:border-brand focus:outline-none" placeholder="Nome (Ex: Tomate)" /></div>
+          <div className="flex-1 flex flex-col bg-gray-100">
+            <div className="bg-slate-900 text-white p-6 pt-10 flex justify-between items-center">
+                <h2 className="text-xl font-bold">Produtos</h2>
+                <button onClick={() => setView('dashboard')} className="text-xs bg-slate-800 px-4 py-2 rounded-full text-brand font-bold">VOLTAR</button>
+            </div>
+            <div className="p-4 space-y-4 overflow-y-auto hide-scrollbar">
+                <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-3">
+                    <div className="flex gap-3">
+                        <input id="inIcon" type="text" placeholder="Emoji" className="w-20 border-2 p-4 rounded-xl text-center" />
+                        <input id="inProd" type="text" placeholder="Nome do Item" className="flex-1 border-2 p-4 rounded-xl text-sm font-bold focus:border-brand outline-none" />
                     </div>
-                    <div className="mb-4"><input type="text" value={novoProdCusto} onChange={e => setNovoProdCusto(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold text-slate-800 focus:border-brand focus:outline-none" placeholder="Custo Unitário (R$)" /></div>
-                    <button onClick={handleAddProduct} disabled={!novoProdNome.trim()} className={`w-full font-bold p-4 rounded-xl shadow-md transition-colors ${novoProdNome.trim() ? 'bg-brand text-white active:bg-green-600' : 'bg-gray-200 text-gray-400'}`}>Adicionar Produto</button>
+                    <input id="inCusto" type="number" placeholder="Custo Unitário (R$)" className="w-full border-2 p-4 rounded-xl text-sm font-bold focus:border-brand outline-none" />
+                    <button onClick={async () => {
+                        const n = document.getElementById('inProd').value;
+                        const i = document.getElementById('inIcon').value;
+                        const c = document.getElementById('inCusto').value;
+                        if(!n) return;
+                        await supabase.from('produtos').insert([{ nome: n, icone: i || '📦', custo: c || 0 }]);
+                        fetchDados();
+                        document.getElementById('inProd').value = '';
+                    }} className="w-full bg-brand text-white font-black p-4 rounded-xl shadow-lg">Cadastrar Item</button>
                 </div>
-
                 <div className="grid grid-cols-2 gap-3">
-                  {produtosLista.map(p => {
-                    if (editingProductId === p.id) {
-                        return (
-                            <div key={p.id} className="bg-white border-2 border-brand p-4 rounded-2xl flex flex-col shadow-lg relative animate-slide-up z-10">
-                                <input value={editProdEmoji} onChange={e=>setEditProdEmoji(e.target.value)} maxLength="2" className="text-3xl bg-gray-50 p-2 rounded-xl mb-2 text-center border focus:border-brand focus:outline-none" />
-                                <input value={editProdNome} onChange={e=>{setEditProdNome(e.target.value); setEditProdEmoji(buscarEmoji(e.target.value));}} className="font-bold text-slate-700 text-sm text-center leading-tight mb-2 border-b focus:border-brand focus:outline-none" />
-                                <input value={editProdCusto} onChange={e=>setEditProdCusto(e.target.value)} className="text-xs text-brand font-bold text-center border-b focus:border-brand focus:outline-none mb-3" placeholder="Custo R$" />
-                                <div className="flex justify-between mt-auto">
-                                    <button onClick={() => handleDeleteProduct(p.id)} className="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-100"><IconDelete/></button>
-                                    <button onClick={() => handleSaveEdit(p.id)} className="bg-brand text-white p-2 rounded-lg font-bold text-xs px-4">Salvar</button>
-                                </div>
-                            </div>
-                        )
-                    } else {
-                        return (
-                            <div key={p.id} className="bg-white border border-gray-100 p-4 pt-8 rounded-2xl flex flex-col items-center shadow-sm relative group">
-                              <button onClick={() => startEditing(p)} className="absolute top-2 right-2 text-slate-400 p-2 bg-gray-50 rounded-full shadow-sm hover:text-brand active:scale-95 transition-transform"><IconEdit/></button>
-                              <span className="text-4xl bg-gray-50 p-3 rounded-2xl mb-2 shadow-inner">{p.icone}</span>
-                              <span className="font-bold text-slate-700 text-sm text-center leading-tight mb-1">{p.nome}</span>
-                              <span className="text-[10px] bg-green-50 text-brand px-2 py-0.5 rounded font-bold">{formatarMoeda(p.custo)}</span>
-                            </div>
-                        )
-                    }
-                  })}
+                    {produtosLista.map(p => (
+                        <div key={p.id} className="bg-white p-5 rounded-2xl border text-center relative shadow-sm">
+                            <span className="text-4xl block mb-2">{p.icone}</span>
+                            <p className="font-bold text-xs text-slate-700">{p.nome}</p>
+                            <p className="text-brand text-xs font-black mt-1">{formatarMoeda(p.custo)}</p>
+                            <button onClick={async () => { if(confirm('Remover?')) { await supabase.from('produtos').delete().eq('id', p.id); fetchDados(); } }} className="absolute top-2 right-2 text-red-200 font-bold">×</button>
+                        </div>
+                    ))}
                 </div>
             </div>
-            <BottomNav />
           </div>
         );
       }
 
-      // ==========================================
-      // TELA GERENTE: EQUIPE
-      // ==========================================
       if (view === 'manager_equipe') {
-        
-        const canAddMembro = novoMembroNome.trim() !== '' && (novoMembroFuncao === 'operacional' || novoMembroCodigo.length === 4);
-
-        const handleAddMembro = () => {
-          if(!canAddMembro) return;
-          const lojaIdFormatado = novoMembroLoja === 'todas' ? null : parseInt(novoMembroLoja);
-          
-          const objSalvar = { nome: novoMembroNome, codigo: novoMembroFuncao === 'operacional' ? '' : novoMembroCodigo, funcao: novoMembroFuncao, loja_id: lojaIdFormatado, avatar: novoMembroAvatar };
-          
-          if (supabase) { supabase.from('equipe').insert([objSalvar]).then(); }
-          
-          setEquipe([{ id: Date.now(), ...objSalvar }, ...equipe]);
-          setNovoMembroNome(''); setNovoMembroCodigo(''); setNovoMembroAvatar('👨‍🍳');
-        };
-
-        const startEditingMembro = (m) => { 
-            setEditingMembroId(m.id); setEditMembroNome(m.nome); setEditMembroCodigo(m.codigo || ''); setEditMembroFuncao(m.funcao); setEditMembroAvatar(m.avatar || '👨‍🍳');
-        };
-        
-        const handleSaveEditMembro = (id) => { 
-            if(editMembroFuncao !== 'operacional' && editMembroCodigo.length !== 4) return alert("Administradores e Gerentes precisam de um PIN de 4 dígitos."); 
-            
-            const objSalvar = { nome: editMembroNome, codigo: editMembroFuncao === 'operacional' ? '' : editMembroCodigo, funcao: editMembroFuncao, avatar: editMembroAvatar };
-            
-            if (supabase) { supabase.from('equipe').update(objSalvar).eq('id', id).then(); }
-            
-            setEquipe(equipe.map(m => m.id === id ? { ...m, ...objSalvar } : m)); 
-            setEditingMembroId(null); 
-        };
-        
-        const handleDeleteMembro = (id) => { 
-            if(window.confirm('Remover acesso deste colaborador?')) { 
-                if (supabase) { supabase.from('equipe').delete().eq('id', id).then(); }
-                setEquipe(equipe.filter(m => m.id !== id)); setEditingMembroId(null); 
-            } 
-        };
-
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full">
-            <div className="bg-slate-900 text-white p-6 pt-10 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Equipe Ativa</h2></div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
-                
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6">
-                    <h3 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">Cadastrar Colaborador</h3>
-                    <div className="space-y-3 mb-4">
-                        
-                        <div className="flex gap-2">
-                            <select value={novoMembroAvatar} onChange={e => setNovoMembroAvatar(e.target.value)} className="w-20 bg-gray-50 border border-gray-200 rounded-xl p-2 text-center text-xl focus:border-brand focus:outline-none">
-                                <option value="👨‍🍳">👨‍🍳</option>
-                                <option value="👩‍🍳">👩‍🍳</option>
-                                <option value="👔">👔</option>
-                                <option value="🛡️">🛡️</option>
-                            </select>
-                            <input type="text" value={novoMembroNome} onChange={e => setNovoMembroNome(e.target.value)} className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold text-slate-800 focus:border-brand focus:outline-none" placeholder="Nome Completo" />
-                        </div>
-                        
-                        <select value={novoMembroLoja} onChange={e => setNovoMembroLoja(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold text-slate-800 focus:border-brand focus:outline-none">
-                            {lojas.map(l => <option key={l.id} value={l.id}>Loja: {l.nome}</option>)}
-                            <option value="todas">Acesso Global (Administrador)</option>
-                        </select>
-
-                        <div className="flex gap-2">
-                            {novoMembroFuncao !== 'operacional' ? (
-                                <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength="4" value={novoMembroCodigo} onChange={e => setNovoMembroCodigo(e.target.value.replace(/\D/g, '').slice(0,4))} className="w-24 bg-gray-50 border border-gray-200 rounded-xl p-3 text-center font-mono font-bold text-slate-800 focus:border-brand focus:outline-none" placeholder="PIN (4)" />
-                            ) : (
-                                <div className="w-24 bg-gray-100 border border-gray-200 rounded-xl p-3 text-center font-bold text-slate-400 text-xs flex items-center justify-center">S/ Senha</div>
-                            )}
-                            <select value={novoMembroFuncao} onChange={e => {
-                                setNovoMembroFuncao(e.target.value);
-                                if (e.target.value === 'operacional') setNovoMembroCodigo('');
-                            }} className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold text-slate-800 focus:border-brand focus:outline-none">
-                                <option value="operacional">Nível: Cozinha/Operacional</option>
-                                <option value="gerente">Nível: Gerente da Loja</option>
-                                <option value="admin">Nível: Administrador</option>
-                            </select>
-                        </div>
-                    </div>
-                    <button onClick={handleAddMembro} disabled={!canAddMembro} className={`w-full font-bold p-3 rounded-xl shadow-md transition-colors ${canAddMembro ? 'bg-brand text-white active:bg-green-600' : 'bg-gray-200 text-gray-400'}`}>Criar Acesso</button>
+          <div className="flex-1 flex flex-col bg-gray-100">
+            <div className="bg-slate-900 text-white p-6 pt-10 flex justify-between items-center">
+                <h2 className="text-xl font-bold">Equipe</h2>
+                <button onClick={() => setView('dashboard')} className="text-xs bg-slate-800 px-4 py-2 rounded-full text-brand font-bold">VOLTAR</button>
+            </div>
+            <div className="p-4 space-y-4">
+                <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-3">
+                    <input id="inName" type="text" placeholder="Nome Completo" className="w-full border-2 p-4 rounded-xl text-sm font-bold outline-none focus:border-brand" />
+                    <select id="inLojaId" className="w-full border-2 p-4 rounded-xl text-sm font-bold bg-white outline-none">
+                        <option value="">Vincular à Unidade...</option>
+                        {lojas.map(l => <option key={l.id} value={l.id}>{l.nome}</option>)}
+                    </select>
+                    <select id="inFuncao" className="w-full border-2 p-4 rounded-xl text-sm font-bold bg-white outline-none">
+                        <option value="operacional">Cozinha / Operacional</option>
+                        <option value="gerente">Gerente da Loja</option>
+                        <option value="admin">Administrador Geral</option>
+                    </select>
+                    <button onClick={async () => {
+                        const n = document.getElementById('inName').value;
+                        const l = document.getElementById('inLojaId').value;
+                        const f = document.getElementById('inFuncao').value;
+                        if(!n) return;
+                        await supabase.from('equipe').insert([{ nome: n, loja_id: l || null, funcao: f, avatar: f === 'gerente' ? '👔' : '👨‍🍳' }]);
+                        fetchDados();
+                        document.getElementById('inName').value = '';
+                    }} className="w-full bg-brand text-white font-black p-4 rounded-xl shadow-lg">Criar Acesso</button>
                 </div>
-
-                <div className="space-y-3">
-                  {equipe.map(m => {
-                    const nomeLoja = lojas.find(l => l.id === m.loja_id)?.nome || "Rede (Todas)";
-                    
-                    if (editingMembroId === m.id) {
-                        return (
-                            <div key={m.id} className="bg-white border-2 border-brand p-4 rounded-2xl flex flex-col shadow-lg animate-slide-up z-10">
-                                
-                                <div className="flex gap-2 mb-3">
-                                    <select value={editMembroAvatar} onChange={e=>setEditMembroAvatar(e.target.value)} className="w-16 text-center text-xl border-b focus:border-brand focus:outline-none bg-transparent">
-                                        <option value="👨‍🍳">👨‍🍳</option>
-                                        <option value="👩‍🍳">👩‍🍳</option>
-                                        <option value="👔">👔</option>
-                                        <option value="🛡️">🛡️</option>
-                                    </select>
-                                    <input value={editMembroNome} onChange={e=>setEditMembroNome(e.target.value)} className="flex-1 font-bold text-slate-700 text-sm border-b focus:border-brand focus:outline-none" placeholder="Nome" />
-                                </div>
-                                
-                                <div className="flex gap-2 mb-3">
-                                    {editMembroFuncao !== 'operacional' ? (
-                                        <input type="text" inputMode="numeric" pattern="[0-9]*" value={editMembroCodigo} onChange={e=>setEditMembroCodigo(e.target.value.replace(/\D/g, '').slice(0,4))} className="w-20 text-center font-mono font-bold text-slate-800 border-b focus:border-brand focus:outline-none" placeholder="PIN" />
-                                    ) : (
-                                        <div className="w-20 text-center font-bold text-slate-400 text-[10px] border-b flex items-center justify-center bg-gray-50 rounded">S/ SENHA</div>
-                                    )}
-                                    <select value={editMembroFuncao} onChange={e => {
-                                        setEditMembroFuncao(e.target.value);
-                                        if (e.target.value === 'operacional') setEditMembroCodigo('');
-                                    }} className="flex-1 text-xs border-b focus:outline-none">
-                                        <option value="operacional">Operacional</option>
-                                        <option value="gerente">Gerente</option>
-                                        <option value="admin">Administrador</option>
-                                    </select>
-                                </div>
-                                <div className="flex justify-between mt-2">
-                                    <button onClick={() => handleDeleteMembro(m.id)} className="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-100"><IconDelete/></button>
-                                    <button onClick={() => handleSaveEditMembro(m.id)} className="bg-brand text-white py-2 px-6 rounded-lg font-bold text-xs">Salvar</button>
-                                </div>
+                <div className="bg-white rounded-2xl border divide-y shadow-sm">
+                    {equipe.map(e => (
+                        <div key={e.id} className="p-5 flex justify-between items-center active:bg-gray-50">
+                            <div>
+                                <p className="font-bold text-sm text-slate-800">{e.avatar} {e.nome}</p>
+                                <p className="text-[10px] text-slate-400 uppercase font-black">{e.funcao}</p>
                             </div>
-                        )
-                    } else {
-                        return (
-                            <div key={m.id} className="bg-white border border-gray-100 p-4 rounded-2xl flex items-center justify-between shadow-sm">
-                              <div>
-                                  <p className="font-bold text-slate-800 text-sm flex items-center">{m.avatar} {m.nome} 
-                                      {m.funcao !== 'operacional' && <span className="ml-2 text-[8px] bg-slate-800 text-white px-1.5 py-0.5 rounded uppercase">{m.funcao}</span>}
-                                  </p>
-                                  <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
-                                    📍 {nomeLoja} • {m.funcao === 'operacional' ? 'Sem Senha' : <>Senha: <span className="bg-gray-100 px-1 rounded font-mono">{m.codigo}</span></>}
-                                  </p>
-                              </div>
-                              <button onClick={() => startEditingMembro(m)} className="text-slate-400 hover:text-brand p-3 bg-gray-50 rounded-full shadow-sm active:scale-95 transition-transform"><IconEdit/></button>
-                            </div>
-                        )
-                    }
-                  })}
+                            <button onClick={async () => { if(confirm('Remover?')) { await supabase.from('equipe').delete().eq('id', e.id); fetchDados(); } }} className="text-red-300 font-bold text-xs">REMOVER</button>
+                        </div>
+                    ))}
                 </div>
             </div>
-            <BottomNav />
-          </div>
-        );
-      }
-
-      // ==========================================
-      // TELA GERENTE: AJUSTES (Logo & Nome)
-      // ==========================================
-      if (view === 'manager_settings') {
-        const handleSaveSettings = () => { alert('✅ Configurações salvas!'); setView('dashboard'); };
-        return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full">
-            <div className="bg-slate-900 text-white p-6 pt-10 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">CONFIGURAÇÕES</p><h2 className="text-2xl font-bold">Ajustes do Sistema</h2></div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">Identidade Visual</h3>
-                    
-                    <div className="mb-6">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">Logomarca (Imagem)</label>
-                        <div className="flex items-center gap-4 mt-2">
-                            <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center overflow-hidden border border-gray-200 text-slate-400 shadow-inner">
-                                {lojaLogo ? <img src={lojaLogo} className="w-full h-full object-cover" /> : <IconShield />}
-                            </div>
-                            <label className="flex-1 bg-white border border-gray-200 text-slate-600 text-sm font-bold p-3 rounded-xl text-center cursor-pointer hover:bg-gray-50 transition-colors shadow-sm active:scale-95">
-                                Alterar Logo
-                                <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                                    if(e.target.files && e.target.files[0]) { setLojaLogo(URL.createObjectURL(e.target.files[0])); }
-                                }} />kk
-                            </label>
-                        </div>
-                    </div>
-
-                    <div className="mb-6">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">Nome da Rede</label>
-                        <input type="text" value={lojaNome} onChange={e => setLojaNome(e.target.value)} className="w-full mt-2 bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold text-slate-800 focus:border-brand focus:outline-none" />
-                    </div>
-                    
-                    <button onClick={handleSaveSettings} className="w-full bg-slate-900 text-white font-bold p-4 rounded-xl shadow-md active:scale-95 transition-transform">Salvar Alterações</button>
-                </div>
-            </div>
-            <BottomNav />
           </div>
         );
       }
