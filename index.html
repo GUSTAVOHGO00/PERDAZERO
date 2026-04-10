@@ -13,22 +13,28 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
-    /* Ajuste para ocupar a tela toda do iPhone sem barras brancas */
-    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #f3f4f6; }
+    /* Reset para comportamento de App Nativo */
+    html, body { 
+      height: 100%; 
+      margin: 0; 
+      padding: 0; 
+      overflow: hidden; 
+      background-color: #0f172a; 
+    }
     body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     
     .bg-brand { background-color: #00A86B; }
     .text-brand { color: #00A86B; }
     .border-brand { border-color: #00A86B; }
-    .hide-scrollbar::-webkit-scrollbar { display: none; }
     
-    /* Área de rolagem para listas longas */
+    /* Scroll interno invisível para listas */
     .scroll-area {
       flex: 1;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
-      padding-bottom: 100px;
+      padding-bottom: 120px;
     }
+    .scroll-area::-webkit-scrollbar { display: none; }
 
     .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
     @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -37,17 +43,20 @@
 </head>
 <body class="flex justify-center items-center">
 
-  <div id="root" class="w-full h-[100dvh] max-w-md bg-white shadow-2xl overflow-hidden flex flex-col relative"></div>
+  <div id="root" class="w-full h-[100svh] max-w-md bg-white shadow-2xl overflow-hidden flex flex-col relative"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // --- CONEXÃO CONFIGURADA ---
+    // ==========================================
+    // ⚠️ CONFIGURAÇÃO SUPABASE
+    // ==========================================
     const SUPABASE_URL = 'https://svibstwhmygwczobybse.supabase.co'; 
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2aWJzdHdobXlnd2N6b2J5YnNlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MDAyNzAsImV4cCI6MjA5MTE3NjI3MH0.nlOAfAfsz7BHs3LkBIBG5xNxVv2i7-BCGgj7uPR7dSg';
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     function App() {
+      // --- CONFIGURAÇÕES E ESTADOS ---
       const [lojaNome, setLojaNome] = useState("Roy's Store");
       const [lojaLogo, setLojaLogo] = useState(null); 
       const [user, setUser] = useState(null); 
@@ -72,6 +81,7 @@
       const [customProductName, setCustomProductName] = useState('');
       const [customProductEmoji, setCustomProductEmoji] = useState('📦');
       const [showColegasList, setShowColegasList] = useState(false);
+      const [selectedColega, setSelectedColega] = useState(null);
       const [observacaoColega, setObservacaoColega] = useState('');
       const [fotoModal, setFotoModal] = useState(null);
 
@@ -86,11 +96,15 @@
       ];
 
       const chartBarRef = useRef(null);
+      const chartDoughnutRef = useRef(null);
       const chartBarInstance = useRef(null);
+      const chartDoughnutInstance = useRef(null);
 
+      // --- MOTOR DE DADOS ---
       useEffect(() => { fetchDados(); }, []);
 
       async function fetchDados() {
+          setLoading(true);
           const { data: dl } = await supabase.from('lojas').select('*').order('nome');
           const { data: de } = await supabase.from('equipe').select('*').order('nome');
           const { data: dp } = await supabase.from('produtos').select('*').order('nome');
@@ -98,6 +112,27 @@
           if(dl) setLojas(dl); if(de) setEquipe(de); if(dp) setProdutosLista(dp); if(dh) setHistorico(dh);
           setLoading(false);
       }
+
+      // --- COMPONENTES VISUAIS ---
+      const IconShield = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>;
+      const IconDelete = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 5H9l-7 7 7 7h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>;
+      const IconBack = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg>;
+
+      const RenderLogo = ({ size = 40 }) => (
+          <div style={{width: size, height: size}} className="bg-white rounded-full flex items-center justify-center overflow-hidden shadow-inner border border-gray-100 shrink-0">
+              {lojaLogo ? <img src={lojaLogo} className="w-full h-full object-cover" /> : <div className="text-brand font-black"><IconShield/></div>}
+          </div>
+      );
+
+      const BottomNav = () => (
+          <div className="bg-white border-t p-2 pb-8 flex justify-around items-center absolute bottom-0 w-full z-20 shadow-2xl">
+              <button onClick={() => setView('dashboard')} className={`flex flex-col items-center flex-1 ${view==='dashboard'?'text-brand':'text-slate-300'}`}><span className="text-xl">📊</span><span className="text-[9px] font-black uppercase mt-1">Painel</span></button>
+              <button onClick={() => setView('manager_produtos')} className={`flex flex-col items-center flex-1 ${view==='manager_produtos'?'text-brand':'text-slate-300'}`}><span className="text-xl">📦</span><span className="text-[9px] font-black uppercase mt-1">Produtos</span></button>
+              {user?.funcao === 'admin' && <button onClick={() => setView('manager_lojas')} className={`flex flex-col items-center flex-1 ${view==='manager_lojas'?'text-brand':'text-slate-300'}`}><span className="text-xl">🏪</span><span className="text-[9px] font-black uppercase mt-1">Unidades</span></button>}
+              <button onClick={() => setView('manager_equipe')} className={`flex flex-col items-center flex-1 ${view==='manager_equipe'?'text-brand':'text-slate-300'}`}><span className="text-xl">👥</span><span className="text-[9px] font-black uppercase mt-1">Equipe</span></button>
+              {user?.funcao === 'admin' && <button onClick={() => setView('manager_settings')} className={`flex flex-col items-center flex-1 ${view==='manager_settings'?'text-brand':'text-slate-300'}`}><span className="text-xl">⚙️</span><span className="text-[9px] font-black uppercase mt-1">Ajustes</span></button>}
+          </div>
+      );
 
       const handleSelectUser = (u) => {
           if (u.funcao === 'operacional') { setUser(u); setView('home_func'); }
@@ -111,34 +146,29 @@
           } else { setPinError(true); setPinAttempt(''); }
       };
 
-      const buscarEmoji = (t) => {
-          const low = t.toLowerCase();
-          for (const [k, e] of Object.entries(emojiDict)) { if(low.includes(k)) return e; }
-          return '📦';
+      const resetFlowState = () => {
+          setRegistro({ foto_arquivo: null, foto_url_local: null, produto: null, qtd: '', unidade: 'un', motivo: null, responsavel: null, observacao: '', custo_unitario: 0, icone: '📦' });
+          setCustomProductName(''); setFlowStep(1);
       };
 
-      const RenderLogo = ({ size = 40 }) => (
-          <div style={{width: size, height: size}} className="bg-white rounded-full flex items-center justify-center overflow-hidden shadow-inner border border-gray-100">
-              {lojaLogo ? <img src={lojaLogo} className="w-full h-full object-cover" /> : <span className="text-brand font-black">R</span>}
-          </div>
-      );
+      // --- GRÁFICOS DASHBOARD ---
+      useEffect(() => {
+        if (view === 'dashboard' && !loading && chartBarRef.current) {
+            const dados = historico.filter(h => dashboardLojaFiltro === 'todas' || h.loja_id === parseInt(dashboardLojaFiltro));
+            if (chartBarInstance.current) chartBarInstance.current.destroy();
+            const perProd = {}; dados.forEach(i => perProd[i.prod] = (perProd[i.prod] || 0) + Number(i.qtd));
+            chartBarInstance.current = new Chart(chartBarRef.current.getContext('2d'), { 
+                type: 'bar', 
+                data: { labels: Object.keys(perProd), datasets: [{ label: 'Volume', data: Object.values(perProd), backgroundColor: '#00A86B', borderRadius: 8 }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+      }, [view, loading, dashboardLojaFiltro, historico]);
 
-      const BottomNav = () => (
-          <div className="bg-white border-t p-2 pb-8 flex justify-around items-center absolute bottom-0 w-full z-20 shadow-lg">
-              <button onClick={() => setView('dashboard')} className={`flex flex-col items-center flex-1 ${view==='dashboard'?'text-brand':'text-slate-300'}`}>📊<span className="text-[10px] font-black mt-1">PAINEL</span></button>
-              <button onClick={() => setView('manager_produtos')} className={`flex flex-col items-center flex-1 ${view==='manager_produtos'?'text-brand':'text-slate-300'}`}>📦<span className="text-[10px] font-black mt-1">PRODUTOS</span></button>
-              <button onClick={() => setView('manager_lojas')} className={`flex flex-col items-center flex-1 ${view==='manager_lojas'?'text-brand':'text-slate-300'}`}>🏪<span className="text-[10px] font-black mt-1">UNIDADES</span></button>
-              <button onClick={() => setView('manager_equipe')} className={`flex flex-col items-center flex-1 ${view==='manager_equipe'?'text-brand':'text-slate-300'}`}>👥<span className="text-[10px] font-black mt-1">EQUIPE</span></button>
-              <button onClick={() => setView('manager_settings')} className={`flex flex-col items-center flex-1 ${view==='manager_settings'?'text-brand':'text-slate-300'}`}>⚙️<span className="text-[10px] font-black mt-1">AJUSTES</span></button>
-          </div>
-      );
-
-      const formatarMoeda = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-
-      if (loading) return <div className="flex-1 flex items-center justify-center bg-slate-900 text-white font-black text-xl">CARREGANDO...</div>;
+      if (loading) return <div className="flex-1 flex items-center justify-center bg-slate-900 text-white font-black text-xl">ROY'S LOADING...</div>;
 
       // ==========================================
-      // VISÃO: SELEÇÃO DE LOJA
+      // TELA 1: SELECIONAR LOJA
       // ==========================================
       if (view === 'select_loja') {
           return (
@@ -156,25 +186,25 @@
                       ))}
                       <button onClick={() => { 
                           const admin = equipe.find(e => e.funcao === 'admin');
-                          if(admin) handleSelectUser(admin); else alert('Admin não cadastrado!');
-                      }} className="w-full mt-8 border-2 border-dashed border-slate-600 text-slate-500 p-5 rounded-[40px] font-black uppercase text-sm active:text-white transition-colors">Acesso Administrativo 🔐</button>
+                          if(admin) handleSelectUser(admin); else alert('Cadastre o Admin na aba Equipe!');
+                      }} className="w-full mt-10 border-2 border-dashed border-slate-600 text-slate-500 p-6 rounded-[40px] font-black uppercase text-sm active:text-white transition-colors">Acesso Administrativo 🔐</button>
                   </div>
               </div>
           );
       }
 
       // ==========================================
-      // VISÃO: PIN MODAL (Onde o admin coloca a senha)
+      // TELA: PIN MODAL
       // ==========================================
       if (view === 'pin_modal') {
           return (
               <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center items-center animate-fade-in">
-                  <div className="bg-white w-full max-w-sm rounded-[55px] p-10 flex flex-col items-center shadow-2xl relative">
+                  <div className="bg-white w-full max-w-sm rounded-[50px] p-10 flex flex-col items-center shadow-2xl relative">
                       <div className="text-7xl mb-4">{userPendingPin.avatar}</div>
                       <h2 className="text-3xl font-black text-slate-800 mb-1">{userPendingPin.nome.split(' ')[0]}</h2>
-                      <p className="text-slate-400 font-bold mb-8">Digite seu PIN de segurança</p>
+                      <p className="text-slate-400 font-bold mb-8">PIN de segurança</p>
                       <div className="flex space-x-3 mb-10">
-                        {[0, 1, 2, 3].map((i) => (<div key={i} className={`w-14 h-14 rounded-2xl flex items-center justify-center text-4xl font-black border-4 ${pinAttempt[i] ? 'border-brand text-brand bg-green-50 scale-110' : 'border-slate-100 text-transparent bg-gray-50'} transition-all`}>{pinAttempt[i] || '•'}</div>))}
+                        {[0, 1, 2, 3].map((i) => (<div key={i} className={`w-16 h-16 rounded-2xl flex items-center justify-center text-4xl font-black border-4 ${pinAttempt[i] ? 'border-brand text-brand bg-green-50 scale-110' : 'border-slate-100 text-transparent bg-gray-50'} transition-all`}>{pinAttempt[i] || '•'}</div>))}
                       </div>
                       <div className="grid grid-cols-3 gap-4 w-full">
                           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (<button key={num} onClick={() => setPinAttempt(pinAttempt + num)} disabled={pinAttempt.length >= 4} className="bg-gray-100 text-slate-800 text-3xl font-black py-6 rounded-[28px] active:bg-slate-200 transition-colors">{num}</button>))}
@@ -189,49 +219,50 @@
       }
 
       // ==========================================
-      // VISÃO: DASHBOARD (Com Rolagem Corrigida)
+      // TELA: DASHBOARD COM ROLAGEM
       // ==========================================
       if (view === 'dashboard') {
           const dados = historico.filter(h => dashboardLojaFiltro === 'todas' || h.loja_id === parseInt(dashboardLojaFiltro));
           const totalPreju = dados.reduce((a,b)=>a+Number(b.custo_total),0);
           return (
-              <div className="flex-1 flex flex-col bg-gray-100 h-full relative overflow-hidden">
+              <div className="flex-1 flex flex-col bg-gray-100 h-full relative overflow-hidden animate-slide-up">
                   <div className="bg-slate-900 text-white p-8 pt-16 pb-10 rounded-b-[60px] shadow-2xl shrink-0">
                       <div className="flex justify-between items-center mb-8">
-                          <div className="flex items-center gap-3">
-                              <RenderLogo size={45} />
-                              <h2 className="text-3xl font-black tracking-tighter">Painel Admin</h2>
-                          </div>
-                          <button onClick={()=>setView('select_loja')} className="p-4 bg-slate-800 rounded-full text-xl active:scale-90 transition-transform">🚪</button>
+                          <div className="flex items-center gap-3"><RenderLogo size={45} /><h2 className="text-3xl font-black tracking-tighter">Painel Roy's</h2></div>
+                          <button onClick={()=>setView('select_loja')} className="p-4 bg-slate-800 rounded-full text-xl">🚪</button>
                       </div>
                       <select value={dashboardLojaFiltro} onChange={(e)=>setDashboardLojaFiltro(e.target.value)} className="w-full bg-slate-800 p-5 rounded-[30px] text-xs font-black mb-8 border-2 border-slate-700 uppercase outline-none text-brand">
                           <option value="todas">🌐 VISÃO GLOBAL</option>
                           {lojas.map(l => <option key={l.id} value={l.id}>🏪 {l.nome.toUpperCase()}</option>)}
                       </select>
                       <div className="grid grid-cols-2 gap-5">
-                          <div className="bg-slate-800 p-6 rounded-[35px] border-l-[12px] border-brand">
-                              <p className="text-slate-500 text-[10px] font-black uppercase mb-1">Prejuízo</p>
-                              <p className="text-3xl font-black">{formatarMoeda(totalPreju)}</p>
+                          <div className="bg-slate-800 p-6 rounded-[35px] border-l-[12px] border-brand shadow-inner">
+                              <p className="text-slate-500 text-[10px] font-black uppercase mb-1">Prejuízo R$</p>
+                              <p className="text-3xl font-black">R${totalPreju.toFixed(2)}</p>
                           </div>
-                          <div className="bg-slate-800 p-6 rounded-[35px] border-l-[12px] border-red-500">
-                              <p className="text-slate-500 text-[10px] font-black uppercase mb-1">Itens</p>
+                          <div className="bg-slate-800 p-6 rounded-[35px] border-l-[12px] border-red-500 shadow-inner">
+                              <p className="text-slate-500 text-[10px] font-black uppercase mb-1">Registros</p>
                               <p className="text-3xl font-black">{dados.length}</p>
                           </div>
                       </div>
                   </div>
                   <div className="scroll-area p-6 space-y-8">
+                      <div className="bg-white p-8 rounded-[50px] shadow-sm border border-slate-100">
+                          <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-8 text-center">Volume por Produto</h3>
+                          <div className="h-48"><canvas ref={chartBarRef}></canvas></div>
+                      </div>
                       <div className="bg-white rounded-[50px] shadow-xl border-4 border-slate-50 overflow-hidden">
                           <div className="p-7 border-b bg-gray-50/50 font-black text-[10px] text-slate-400 uppercase tracking-[0.3em] text-center">Auditoria em Tempo Real</div>
                           <div className="divide-y">
                               {dados.map(h => (
                                   <div key={h.id} className="p-6 flex gap-4 items-center active:bg-gray-50 transition-colors">
-                                      {h.foto_url ? <img src={h.foto_url} className="w-16 h-16 rounded-3xl object-cover shadow-lg" /> : <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center text-3xl">{h.img}</div>}
+                                      {h.foto_url ? <img src={h.foto_url} className="w-16 h-16 rounded-3xl object-cover shadow-lg border-2 border-white" /> : <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center text-3xl">{h.img}</div>}
                                       <div className="flex-1 min-w-0">
-                                          <p className="font-black text-slate-800 truncate text-lg tracking-tighter">{h.prod} ({h.qtd}{h.uni})</p>
+                                          <p className="font-black text-slate-800 truncate text-xl tracking-tighter">{h.prod} ({h.qtd}{h.uni})</p>
                                           <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Causa: {h.responsavel}</p>
                                       </div>
-                                      <div className="text-right">
-                                          <p className="font-black text-red-500 text-lg">{formatarMoeda(h.custo_total)}</p>
+                                      <div className="text-right shrink-0">
+                                          <p className="font-black text-red-500 text-lg">R${Number(h.custo_total).toFixed(2)}</p>
                                           <p className="text-[9px] text-slate-300 font-black uppercase">{h.hora}</p>
                                       </div>
                                   </div>
@@ -245,29 +276,29 @@
       }
 
       // ==========================================
-      // VISÃO: AJUSTES (IDENTIDADE)
+      // TELA: AJUSTES (IDENTIDADE)
       // ==========================================
       if (view === 'manager_settings') {
           return (
               <div className="flex-1 flex flex-col bg-gray-100 h-full relative overflow-hidden animate-slide-up">
-                  <div className="bg-slate-900 text-white p-8 pt-16 pb-12 rounded-b-[60px] flex justify-between items-center shrink-0">
+                  <div className="bg-slate-900 text-white p-8 pt-16 pb-12 rounded-b-[60px] shadow-lg flex justify-between items-center shrink-0">
                       <h2 className="text-3xl font-black uppercase tracking-tighter">Ajustes</h2>
-                      <button onClick={()=>setView('dashboard')} className="bg-brand px-8 py-3 rounded-full font-black text-xs">OK</button>
+                      <button onClick={()=>setView('dashboard')} className="bg-brand px-8 py-3 rounded-full font-black text-xs shadow-xl active:scale-95">OK</button>
                   </div>
                   <div className="scroll-area p-8 space-y-10">
                       <div className="bg-white p-10 rounded-[50px] shadow-xl space-y-8">
                           <div>
-                              <label className="text-[10px] font-black text-slate-400 uppercase mb-4 block">Logo da Rede</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 block">Logo da Rede</label>
                               <div className="flex items-center gap-6">
                                   <RenderLogo size={100} />
                                   <label className="flex-1 bg-slate-900 text-white font-black p-5 rounded-3xl text-center text-xs cursor-pointer active:scale-95 transition-transform shadow-xl">
-                                      TROCAR LOGO
+                                      ALTERAR LOGO
                                       <input type="file" accept="image/*" className="hidden" onChange={(e) => { if(e.target.files[0]) setLojaLogo(URL.createObjectURL(e.target.files[0])); }} />
                                   </label>
                               </div>
                           </div>
                           <div>
-                              <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Nome do Negócio</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Nome da Rede</label>
                               <input type="text" value={lojaNome} onChange={(e)=>setLojaNome(e.target.value)} className="w-full p-6 bg-gray-100 rounded-3xl font-black text-2xl border-4 border-transparent focus:border-brand outline-none transition-all" />
                           </div>
                           <button onClick={()=>alert('✅ Salvo com sucesso!')} className="w-full bg-brand text-white font-black p-7 rounded-[35px] text-xl shadow-2xl active:scale-95 transition-transform">SALVAR TUDO</button>
@@ -278,19 +309,44 @@
           );
       }
 
-      // Fallback para outras gestões (Produtos/Lojas/Equipe seguiriam a mesma lógica do scroll-area)...
-      return (
-          <div className="flex-1 flex flex-col bg-gray-100 h-full relative overflow-hidden">
-              <div className="bg-slate-900 text-white p-10 pt-16 pb-12 rounded-b-[60px] flex justify-between items-center">
-                  <h2 className="text-2xl font-black uppercase">Em Otimização</h2>
-                  <button onClick={()=>setView('dashboard')} className="bg-brand px-6 py-2 rounded-full font-black text-xs">VOLTAR</button>
-              </div>
-              <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
-                <p className="font-bold text-slate-400">Walney, os menus de Unidades e Equipe já estão prontos para receber o seu conteúdo no banco de dados!</p>
-              </div>
-              <BottomNav />
+      // Fallback para outras telas de gestão (Produtos, Lojas, Equipe) mantendo a rolagem...
+      if (view === 'manager_produtos') {
+        return (
+          <div className="flex-1 flex flex-col bg-gray-100 h-full relative overflow-hidden animate-slide-up">
+            <div className="bg-slate-900 text-white p-8 pt-16 pb-12 rounded-b-[60px] shadow-lg flex justify-between items-center shrink-0">
+                <h2 className="text-3xl font-black uppercase tracking-tighter">Produtos</h2>
+                <button onClick={()=>setView('dashboard')} className="bg-brand px-8 py-3 rounded-full font-black text-xs shadow-xl active:scale-95">OK</button>
+            </div>
+            <div className="scroll-area p-6 space-y-8">
+                <div className="bg-white p-8 rounded-[45px] border-4 border-brand/5 shadow-sm space-y-6">
+                    <div className="flex gap-4">
+                        <input id="inIcon" placeholder="🎨" className="w-24 p-6 bg-gray-100 rounded-3xl font-black text-center text-3xl border-4 border-transparent focus:border-brand outline-none" />
+                        <input id="inProd" placeholder="NOME DO ITEM" className="flex-1 p-6 bg-gray-100 rounded-3xl font-black text-xl border-4 border-transparent focus:border-brand outline-none uppercase" />
+                    </div>
+                    <input id="inCusto" type="number" placeholder="CUSTO R$" className="w-full p-6 bg-gray-100 rounded-3xl font-black text-xl border-4 border-transparent focus:border-brand outline-none" />
+                    <button onClick={async()=>{
+                        const n=document.getElementById('inProd').value; const i=document.getElementById('inIcon').value; const c=document.getElementById('inCusto').value;
+                        if(!n)return; await supabase.from('produtos').insert([{nome:n, icone:i||'📦', custo:c||0}]); fetchDados();
+                        document.getElementById('inProd').value=''; document.getElementById('inIcon').value=''; document.getElementById('inCusto').value='';
+                    }} className="w-full bg-slate-900 text-white p-6 rounded-[35px] font-black text-xl shadow-2xl uppercase active:scale-95 transition-transform">Salvar Item</button>
+                </div>
+                <div className="grid grid-cols-2 gap-5 pb-32">
+                    {produtosLista.map(p => (
+                        <div key={p.id} className="bg-white p-8 rounded-[50px] shadow-xl border-4 border-transparent relative flex flex-col items-center">
+                            <span className="text-6xl mb-4">{p.icone}</span>
+                            <span className="font-black text-slate-800 text-center text-[10px] uppercase tracking-widest leading-tight">{p.nome}</span>
+                            <span className="text-brand font-black text-lg mt-2">R${Number(p.custo).toFixed(2)}</span>
+                            <button onClick={async()=>{if(confirm('Apagar?')){await supabase.from('produtos').delete().eq('id', p.id); fetchDados();}}} className="absolute top-4 right-6 text-red-100 font-black text-2xl">×</button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+            <BottomNav />
           </div>
-      );
+        );
+      }
+
+      return null;
     }
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
