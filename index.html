@@ -2,10 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#00A86B">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>PerdaZero - PRO MultiLojas</title>
   
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -16,33 +13,19 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
-    body { 
-      touch-action: manipulation; 
-      -webkit-tap-highlight-color: transparent; 
-      -webkit-font-smoothing: antialiased;
-    }
+    body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     .bg-brand { background-color: #00A86B; }
     .text-brand { color: #00A86B; }
     .border-brand { border-color: #00A86B; }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
-    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .chart-container { position: relative; width: 100%; height: 200px; }
     .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
     .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
     @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    
-    /* Proteção para a barra inferior do iPhone (Notch/Home Indicator) */
-    .pb-safe-nav {
-      padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
-    }
-    .h-safe-screen {
-      height: 100vh;
-      height: -webkit-fill-available;
-    }
   </style>
 </head>
-<body class="bg-gray-200 h-safe-screen w-screen overflow-hidden flex justify-center">
+<body class="bg-gray-200 w-screen overflow-hidden flex justify-center" style="height: 100vh; height: 100dvh;">
 
   <div id="root" class="w-full h-full max-w-md bg-white shadow-2xl overflow-hidden flex flex-col relative"></div>
 
@@ -50,7 +33,7 @@
     const { useState, useEffect, useRef } = React;
 
     // ==========================================
-    // ⚠️ CHAVES DO SUPABASE
+    // ⚠️ CHAVES DO SUPABASE (COLE AQUI)
     // ==========================================
     const SUPABASE_URL = 'https://svibstwhmygwczobybse.supabase.co'; 
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2aWJzdHdobXlnd2N6b2J5YnNlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2MDAyNzAsImV4cCI6MjA5MTE3NjI3MH0.nlOAfAfsz7BHs3LkBIBG5xNxVv2i7-BCGgj7uPR7dSg';
@@ -122,7 +105,7 @@
       const [showColegasList, setShowColegasList] = useState(false);
       const [selectedColega, setSelectedColega] = useState(null);
       const [observacaoColega, setObservacaoColega] = useState('');
-      const [isUploading, setIsUploading] = useState(false);
+      const [isUploading, setIsUploading] = useState(false); // NOVO: Estado de loading da foto
       const [fotoModal, setFotoModal] = useState(null);
 
       // Gestão Produtos
@@ -306,7 +289,7 @@
       };
 
       const BottomNav = () => (
-          <div className="bg-white border-t border-gray-200 p-2 pb-safe-nav px-2 flex justify-between items-center absolute bottom-0 w-full z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+          <div className="bg-white border-t border-gray-200 p-2 pb-6 px-2 flex justify-between items-center absolute bottom-0 w-full z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
               <button onClick={() => setView('dashboard')} className={`flex flex-col items-center p-2 flex-1 ${view === 'dashboard' ? 'text-brand' : 'text-slate-400'}`}><IconDashboard/><span className="text-[9px] font-bold uppercase mt-1">Painel</span></button>
               <button onClick={() => setView('manager_produtos')} className={`flex flex-col items-center p-2 flex-1 ${view === 'manager_produtos' ? 'text-brand' : 'text-slate-400'}`}><IconBox/><span className="text-[9px] font-bold uppercase mt-1">Produtos</span></button>
               {user?.funcao === 'admin' && <button onClick={() => setView('manager_lojas')} className={`flex flex-col items-center p-2 flex-1 ${view === 'manager_lojas' ? 'text-brand' : 'text-slate-400'}`}><IconStore/><span className="text-[9px] font-bold uppercase mt-1">Unidades</span></button>}
@@ -349,11 +332,11 @@
           const equipeDaLoja = equipe.filter(e => e.loja_id === currentLoja?.id || e.funcao === 'admin');
           return (
               <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up relative">
-                  <div className="bg-brand p-6 pt-10 pb-8 rounded-b-[40px] shadow-lg flex flex-col justify-between text-white text-center pb-safe-nav">
+                  <div className="bg-brand p-6 pt-10 pb-8 rounded-b-[40px] shadow-lg flex flex-col justify-between text-white text-center">
                       <p className="text-green-100 text-sm font-bold tracking-widest uppercase mb-1">{currentLoja?.nome || "Painel Geral"}</p>
                       <h2 className="text-3xl font-black">Quem é você?</h2>
                   </div>
-                  <div className="flex-1 p-6 overflow-y-auto hide-scrollbar">
+                  <div className="flex-1 p-6 overflow-y-auto">
                       <p className="text-center text-slate-500 font-medium mb-6">Toque no seu nome para continuar</p>
                       <div className="grid grid-cols-2 gap-4">
                           {equipeDaLoja.length === 0 && <p className="text-slate-400 col-span-2 text-center py-4">Nenhum funcionário nesta loja.</p>}
@@ -366,7 +349,7 @@
                           ))}
                       </div>
                   </div>
-                  <button onClick={() => setView('select_loja')} className="p-4 text-slate-400 font-bold text-sm text-center w-full pb-safe-nav">Voltar / Trocar de Loja</button>
+                  <button onClick={() => setView('select_loja')} className="p-4 text-slate-400 font-bold text-sm text-center w-full">Voltar / Trocar de Loja</button>
               </div>
           );
       }
@@ -408,7 +391,7 @@
       // ==========================================
       if (view === 'home_func') {
         return (
-          <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up pb-safe-nav">
+          <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up">
             <div className="bg-brand p-6 pt-10 pb-10 rounded-b-[40px] shadow-lg flex justify-between items-center text-white relative overflow-hidden">
                <div className="absolute top-[-20px] right-[-20px] opacity-20 text-brand pointer-events-none"><RenderLogo size={160} /></div>
                <div className="z-10"><p className="text-green-100 text-sm font-medium">Bom trabalho,</p><h2 className="text-3xl font-bold tracking-tight">{user.nome.split(' ')[0]}</h2></div>
@@ -503,8 +486,8 @@
         }
 
         return (
-          <div className="flex-1 flex flex-col bg-white pb-safe-nav">
-            <div className="p-4 border-b flex items-center shadow-sm z-10 pt-safe-nav">
+          <div className="flex-1 flex flex-col bg-white">
+            <div className="p-4 border-b flex items-center shadow-sm z-10">
               <button onClick={() => { 
                   if(flowStep === 5 && selectedColega) { setSelectedColega(null); setObservacaoColega(''); return; }
                   if(flowStep === 5 && showColegasList) { setShowColegasList(false); return; }
@@ -680,7 +663,7 @@
         const topProdutos = Object.entries(rankingProd).sort((a,b)=>b[1]-a[1]).slice(0,3);
 
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav relative">
+          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full">
             <PhotoModal />
             <div className="bg-slate-900 text-white p-6 pt-10 flex flex-col shadow-md z-10">
                <div className="flex justify-between items-center mb-4">
@@ -807,7 +790,7 @@
         };
 
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav relative">
+          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full">
             <div className="bg-slate-900 text-white p-6 pt-10 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Unidades Operacionais</h2></div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
                 
@@ -881,7 +864,7 @@
         };
 
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav relative">
+          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full">
             <div className="bg-slate-900 text-white p-6 pt-10 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Cardápio de Perdas</h2></div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
                 
@@ -969,7 +952,7 @@
         };
 
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav relative">
+          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full">
             <div className="bg-slate-900 text-white p-6 pt-10 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Equipe Ativa</h2></div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
                 
@@ -1079,7 +1062,7 @@
       if (view === 'manager_settings') {
         const handleSaveSettings = () => { alert('✅ Configurações salvas!'); setView('dashboard'); };
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav relative">
+          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full">
             <div className="bg-slate-900 text-white p-6 pt-10 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">CONFIGURAÇÕES</p><h2 className="text-2xl font-bold">Ajustes do Sistema</h2></div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
