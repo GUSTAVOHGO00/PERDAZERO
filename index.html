@@ -70,10 +70,26 @@
           if (savedLogo) setLojaLogo(savedLogo);
       }, []);
 
-      // --- ESTADOS GLOBAIS ---
-      const [user, setUser] = useState(null); 
-      const [view, setView] = useState('select_loja'); 
-      const [flowStep, setFlowStep] = useState(0); 
+      // --- ESTADOS GLOBAIS COM PERSISTÊNCIA BÁSICA DE SESSÃO ---
+      const [user, setUser] = useState(() => {
+          try {
+              const savedUser = localStorage.getItem('pz_user_session');
+              return savedUser ? JSON.parse(savedUser) : null;
+          } catch (e) { return null; }
+      }); 
+      
+      const [view, setView] = useState(() => {
+          try {
+              const savedUser = localStorage.getItem('pz_user_session');
+              if (savedUser) {
+                  const parsedUser = JSON.parse(savedUser);
+                  return parsedUser.funcao === 'operacional' ? 'home_func' : 'dashboard';
+              }
+              return 'select_loja';
+          } catch (e) { return 'select_loja'; }
+      }); 
+
+      const [flowStep, setFlowStep] = useState(1); 
       const [filtroTempo, setFiltroTempo] = useState('hoje'); 
       
       // --- BANCO DE DADOS ---
@@ -178,7 +194,7 @@
       const chartBarInstance = useRef(null);
       const chartDoughnutInstance = useRef(null);
 
-      // Ícones (Atualizamos o IconDelete para receber 'size')
+      // Ícones 
       const IconShield = () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>;
       const IconDelete = ({ size = 24 }) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 5H9l-7 7 7 7h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>;
       const IconLogout = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>;
@@ -250,6 +266,7 @@
       const handleSelectUser = (selectedUser) => {
           if (selectedUser.funcao === 'operacional') {
               setUser(selectedUser);
+              localStorage.setItem('pz_user_session', JSON.stringify(selectedUser));
               setView('home_func');
           } else {
               setUserPendingPin(selectedUser);
@@ -262,6 +279,7 @@
       const handlePinSubmit = () => {
           if (pinAttempt === userPendingPin.codigo) {
               setUser(userPendingPin);
+              localStorage.setItem('pz_user_session', JSON.stringify(userPendingPin));
               setView('dashboard');
               setDashboardLojaFiltro(userPendingPin.loja_id ? userPendingPin.loja_id.toString() : 'todas');
           } else {
@@ -269,6 +287,12 @@
               setPinAttempt('');
           }
       };
+
+      const handleLogout = () => {
+          setUser(null);
+          localStorage.removeItem('pz_user_session');
+          setView('select_loja');
+      }
 
       const resetFlowState = () => {
           setRegistro({ foto_arquivo: null, foto_url_local: null, produto: null, qtd: '', unidade: 'un', motivo: null, responsavel: null, observacao: '', custo_unitario: 0, icone: '📦' });
@@ -335,7 +359,7 @@
                           </button>
                       ))}
                   </div>
-                  <button onClick={() => { setCurrentLoja({id: null, nome: 'Acesso Administrativo'}); setView('select_user'); }} className="w-full mt-2 bg-transparent border-2 border-dashed border-slate-700 text-slate-400 p-4 rounded-2xl font-bold hover:text-white hover:border-slate-500 transition-colors pb-safe-nav">
+                  <button onClick={() => { setCurrentLoja({id: null, nome: 'Acesso Administrativo'}); setView('select_user'); }} className="w-full mt-2 bg-transparent border-2 border-dashed border-slate-700 text-slate-400 p-4 rounded-2xl font-bold hover:text-white hover:border-slate-500 transition-colors pb-safe-nav flex-shrink-0">
                       Acesso Administrativo
                   </button>
               </div>
@@ -411,7 +435,7 @@
             <div className="bg-brand p-6 pt-10 pb-10 rounded-b-[40px] shadow-lg flex justify-between items-center text-white relative overflow-hidden">
                <div className="absolute top-[-20px] right-[-20px] opacity-20 text-brand pointer-events-none"><RenderLogo size={160} /></div>
                <div className="z-10"><p className="text-green-100 text-sm font-medium">Bom trabalho,</p><h2 className="text-3xl font-bold tracking-tight">{user.nome.split(' ')[0]}</h2></div>
-               <button onClick={() => {setUser(null); setView('select_loja');}} className="p-3 bg-white/20 rounded-full z-10 active:bg-white/30 transition-colors"><IconLogout/></button>
+               <button onClick={handleLogout} className="p-3 bg-white/20 rounded-full z-10 active:bg-white/30 transition-colors"><IconLogout/></button>
             </div>
             <div className="flex-1 flex flex-col items-center justify-center p-6">
                 <button onClick={() => { setView('flow'); resetFlowState(); }} className="w-full max-w-xs aspect-square bg-red-50 border-4 border-red-500 rounded-[40px] flex flex-col items-center justify-center text-red-600 active:scale-95 shadow-2xl transition-transform z-10">
@@ -459,8 +483,11 @@
             const horaFormatada = dataAtual.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             const horaString = `Hoje, ${horaFormatada}`;
 
+            // Usa a loja selecionada pela sessão atual ou a loja vinculada ao usuário
+            const idLojaOperacao = currentLoja?.id || user?.loja_id || 0;
+
             const objSalvar = {
-                loja_id: currentLoja.id, relator: user.nome, responsavel: nomeResponsavel,
+                loja_id: idLojaOperacao, relator: user.nome, responsavel: nomeResponsavel,
                 prod: registro.produto, qtd: qtdNum, uni: registro.unidade,
                 motivo: registro.motivo, observacao: observacaoColega, hora: horaString,
                 img: registro.icone, custo_total: custoTotal, foto_url: finalPhotoUrl, timestamp: Date.now()
@@ -494,7 +521,7 @@
 
         return (
           <div className="flex-1 flex flex-col bg-white pb-safe-nav">
-            <div className="p-4 border-b flex items-center shadow-sm z-10 pt-safe-nav">
+            <div className="p-4 border-b flex items-center shadow-sm z-10 pt-safe-nav shrink-0">
               <button onClick={() => { 
                   if(flowStep === 5 && selectedColega) { setSelectedColega(null); setObservacaoColega(''); return; }
                   if(flowStep === 5 && showColegasList) { setShowColegasList(false); return; }
@@ -505,23 +532,24 @@
             </div>
 
             {flowStep === 1 && (
-              <div className="flex-1 flex flex-col items-center justify-center p-6 animate-slide-up text-center">
-                <h3 className="text-2xl font-bold text-slate-800 mb-8">Tire uma foto do item</h3>
+              <div className="flex-1 flex flex-col items-center justify-center p-6 animate-slide-up text-center overflow-y-auto">
+                <h3 className="text-2xl font-bold text-slate-800 mb-8 shrink-0">Tire uma foto do item</h3>
                 
                 {registro.foto_url_local ? (
-                    <div className="w-full max-w-xs relative mb-8 rounded-2xl overflow-hidden shadow-lg border-4 border-brand">
+                    <div className="w-full max-w-xs relative mb-8 rounded-2xl overflow-hidden shadow-lg border-4 border-brand shrink-0">
                         <img src={registro.foto_url_local} className="w-full h-48 object-cover" />
                         <div className="absolute bottom-2 right-2 bg-brand text-white text-xs font-bold px-2 py-1 rounded">Câmera Ativa</div>
                     </div>
                 ) : (
-                    <div className="w-full max-w-xs h-48 bg-gray-100 rounded-2xl mb-8 flex items-center justify-center border-2 border-dashed border-gray-300 text-gray-400">
+                    <div className="w-full max-w-xs h-48 bg-gray-100 rounded-2xl mb-8 flex items-center justify-center border-2 border-dashed border-gray-300 text-gray-400 shrink-0">
                         <IconCameraLg />
                     </div>
                 )}
 
-                <label className="w-full py-5 bg-brand text-white font-bold rounded-2xl text-xl flex items-center justify-center shadow-xl active:scale-95 cursor-pointer transition-transform">
+                <label className="w-full py-5 bg-brand text-white font-bold rounded-2xl text-xl flex items-center justify-center shadow-xl active:scale-95 cursor-pointer transition-transform shrink-0">
                   <IconCameraSm/> <span className="ml-2">{registro.foto_url_local ? 'Tirar Outra Foto' : 'Abrir Câmera'}</span>
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { 
+                  {/* Removido o capture="environment" para Android não matar a aba por falta de RAM */}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => { 
                       if(e.target.files && e.target.files[0]) {
                           const file = e.target.files[0];
                           const urlLocal = URL.createObjectURL(file);
@@ -531,10 +559,10 @@
                 </label>
 
                 {registro.foto_url_local && (
-                     <button onClick={() => setFlowStep(2)} className="mt-4 w-full py-5 bg-slate-900 text-white font-bold rounded-2xl text-xl shadow-xl active:scale-95 transition-transform animate-fade-in">Avançar com esta foto</button>
+                     <button onClick={() => setFlowStep(2)} className="mt-4 w-full py-5 bg-slate-900 text-white font-bold rounded-2xl text-xl shadow-xl active:scale-95 transition-transform animate-fade-in shrink-0">Avançar com esta foto</button>
                 )}
 
-                <button onClick={() => setFlowStep(2)} className="mt-8 text-slate-400 underline p-2 font-medium">Pular (Sem Foto)</button>
+                <button onClick={() => setFlowStep(2)} className="mt-8 text-slate-400 underline p-2 font-medium shrink-0">Pular (Sem Foto)</button>
               </div>
             )}
 
@@ -563,28 +591,32 @@
             )}
 
             {flowStep === 3 && (
-              <div className="flex-1 flex flex-col p-6 items-center animate-slide-up bg-gray-50">
-                <h3 className="text-lg font-bold text-slate-800 mb-1">Quantidade de</h3><p className="text-brand font-extrabold text-xl mb-6 text-center">{registro.icone} {registro.produto}</p>
-                <div className="flex bg-gray-200 p-1.5 rounded-2xl mb-8 w-full max-w-xs">
+              /* AQUI ESTÁ A CORREÇÃO DO IPHONE: overflow-y-auto e flex-shrink-0 no botão */
+              <div className="flex-1 flex flex-col p-6 items-center animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
+                <h3 className="text-lg font-bold text-slate-800 mb-1 flex-shrink-0">Quantidade de</h3>
+                <p className="text-brand font-extrabold text-xl mb-4 text-center flex-shrink-0">{registro.icone} {registro.produto}</p>
+                <div className="flex bg-gray-200 p-1.5 rounded-2xl mb-6 w-full max-w-xs flex-shrink-0">
                   <button onClick={()=>setRegistro({...registro, unidade: 'un'})} className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'un' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Unid.</button>
                   <button onClick={()=>setRegistro({...registro, unidade: 'kg'})} className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'kg' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Kg</button>
                   <button onClick={()=>setRegistro({...registro, unidade: 'L'})}  className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'L' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Litro</button>
                 </div>
-                <div className="text-6xl font-black text-slate-800 mb-8 h-16 flex items-baseline">{registro.qtd || '0'} <span className="text-2xl text-slate-400 ml-2 font-bold">{registro.unidade}</span></div>
-                <div className="grid grid-cols-3 gap-3 w-full max-w-xs mb-4">
-                  {[1,2,3,4,5,6,7,8,9].map(n => <button key={n} onClick={() => setRegistro({...registro, qtd: registro.qtd + n})} className="bg-white border border-gray-200 text-3xl font-bold py-4 rounded-2xl active:bg-gray-100 shadow-sm">{n}</button>)}
-                  <button onClick={() => { if (!registro.qtd.includes(',')) setRegistro({...registro, qtd: registro.qtd + ','}); }} className="bg-white border border-gray-200 text-3xl font-bold py-4 rounded-2xl active:bg-gray-100 shadow-sm">,</button>
-                  <button onClick={() => setRegistro({...registro, qtd: registro.qtd + '0'})} className="bg-white border border-gray-200 text-3xl font-bold py-4 rounded-2xl active:bg-gray-100 shadow-sm">0</button>
-                  <button onClick={() => setRegistro({...registro, qtd: registro.qtd.slice(0,-1)})} className="bg-red-50 border border-red-100 text-red-500 py-4 rounded-2xl flex justify-center items-center shadow-sm active:bg-red-100"><IconDelete/></button>
+                <div className="text-5xl font-black text-slate-800 mb-6 h-14 flex items-baseline flex-shrink-0">{registro.qtd || '0'} <span className="text-2xl text-slate-400 ml-2 font-bold">{registro.unidade}</span></div>
+                
+                <div className="grid grid-cols-3 gap-2 w-full max-w-xs mb-6 flex-shrink-0">
+                  {[1,2,3,4,5,6,7,8,9].map(n => <button key={n} onClick={() => setRegistro({...registro, qtd: registro.qtd + n})} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">{n}</button>)}
+                  <button onClick={() => { if (!registro.qtd.includes(',')) setRegistro({...registro, qtd: registro.qtd + ','}); }} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">,</button>
+                  <button onClick={() => setRegistro({...registro, qtd: registro.qtd + '0'})} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">0</button>
+                  <button onClick={() => setRegistro({...registro, qtd: registro.qtd.slice(0,-1)})} className="bg-red-50 border border-red-100 text-red-500 py-3 rounded-2xl flex justify-center items-center shadow-sm active:bg-red-100"><IconDelete/></button>
                 </div>
-                <button onClick={()=>setFlowStep(4)} disabled={!registro.qtd} className={`mt-auto w-full max-w-xs py-4 rounded-2xl font-bold text-white text-lg transition-all ${registro.qtd ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>AVANÇAR</button>
+                
+                <button onClick={()=>setFlowStep(4)} disabled={!registro.qtd} className={`mt-auto flex-shrink-0 w-full max-w-xs py-4 rounded-2xl font-bold text-white text-lg transition-all ${registro.qtd ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>AVANÇAR</button>
               </div>
             )}
 
             {flowStep === 4 && !isCustomMotivo && (
               <div className="flex-1 flex flex-col p-4 animate-slide-up bg-gray-50 min-h-0">
-                <h3 className="text-xl font-bold text-slate-800 mb-1 px-2">Por que foi perdido?</h3>
-                <p className="text-slate-500 text-sm mb-6 px-2">Selecione o motivo.</p>
+                <h3 className="text-xl font-bold text-slate-800 mb-1 px-2 flex-shrink-0">Por que foi perdido?</h3>
+                <p className="text-slate-500 text-sm mb-6 px-2 flex-shrink-0">Selecione o motivo.</p>
                 <div className="grid grid-cols-2 gap-3 pb-6 px-2 overflow-y-auto flex-1 min-h-0 hide-scrollbar">
                   {motivosLista.map(m => (
                     <button key={m.id} onClick={() => { m.nome === 'Outro' ? setIsCustomMotivo(true) : proceedToStep5(m.nome); }} className="bg-white border border-gray-200 p-5 rounded-3xl flex flex-col items-center shadow-sm active:scale-95 transition-transform"><div className={`w-14 h-14 rounded-full flex items-center justify-center text-3xl mb-3 shadow-inner ${m.cor}`}>{m.icone}</div><span className="font-bold text-slate-700 text-sm text-center">{m.nome}</span></button>
@@ -594,20 +626,20 @@
             )}
 
             {flowStep === 4 && isCustomMotivo && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50">
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Descrever Motivo</h3>
-                <textarea autoFocus placeholder="Ex: A geladeira desligou..." value={customMotivoName} onChange={(e) => setCustomMotivoName(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32"></textarea>
-                <button onClick={() => proceedToStep5('Outro')} disabled={customMotivoName.trim() === ''} className={`w-full py-4 rounded-2xl font-bold text-white text-lg transition-all ${customMotivoName.trim() !== '' ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>Avançar</button>
+              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
+                <h3 className="text-xl font-bold text-slate-800 mb-2 flex-shrink-0">Descrever Motivo</h3>
+                <textarea autoFocus placeholder="Ex: A geladeira desligou..." value={customMotivoName} onChange={(e) => setCustomMotivoName(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32 flex-shrink-0"></textarea>
+                <button onClick={() => proceedToStep5('Outro')} disabled={customMotivoName.trim() === ''} className={`mt-auto flex-shrink-0 w-full py-4 rounded-2xl font-bold text-white text-lg transition-all ${customMotivoName.trim() !== '' ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>Avançar</button>
               </div>
             )}
 
             {/* PASSO 5 - RESPONSABILIDADE */}
             {flowStep === 5 && !showColegasList && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 items-center justify-center text-center">
-                <h3 className="text-3xl font-black text-slate-800 mb-2">Você sabe quem foi?</h3>
-                <p className="text-slate-500 font-medium mb-8">Fique tranquilo(a)! Se você apontar um colega, essa informação é confidencial e só a gerência verá.</p>
+              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 items-center justify-center text-center overflow-y-auto">
+                <h3 className="text-3xl font-black text-slate-800 mb-2 shrink-0">Você sabe quem foi?</h3>
+                <p className="text-slate-500 font-medium mb-8 shrink-0">Fique tranquilo(a)! Se você apontar um colega, essa informação é confidencial e só a gerência verá.</p>
                 
-                <div className="w-full max-w-xs space-y-4">
+                <div className="w-full max-w-xs space-y-4 shrink-0">
                     <button onClick={() => finishFlow(user.nome)} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-slate-700 text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
                         🙋‍♂️ Fui eu mesmo
                     </button>
@@ -627,7 +659,7 @@
                 <p className="text-slate-500 text-sm mb-6 flex-shrink-0">Esta informação é confidencial.</p>
 
                 <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-6 hide-scrollbar flex-1 min-h-0">
-                  {equipe.filter(e => e.loja_id === currentLoja.id).map(c => (
+                  {equipe.filter(e => e.loja_id === currentLoja?.id).map(c => (
                     <button key={c.id} onClick={() => setSelectedColega(c.nome)} className="bg-white border border-gray-200 p-4 rounded-2xl flex flex-col items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
                         <span className="text-4xl mb-2">{c.avatar || '👤'}</span>
                         <span className="font-bold text-slate-700 text-sm text-center">{c.nome.split(' ')[0]}</span>
@@ -638,13 +670,13 @@
             )}
 
             {flowStep === 5 && selectedColega && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50">
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Responsável: {selectedColega.split(' ')[0]}</h3>
-                <p className="text-slate-500 text-sm mb-6">Quer adicionar alguma observação? (Opcional)</p>
+              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
+                <h3 className="text-xl font-bold text-slate-800 mb-2 flex-shrink-0">Responsável: {selectedColega.split(' ')[0]}</h3>
+                <p className="text-slate-500 text-sm mb-6 flex-shrink-0">Quer adicionar alguma observação? (Opcional)</p>
                 
-                <textarea autoFocus placeholder="Ex: Deixou a porta do freezer aberta..." value={observacaoColega} onChange={(e) => setObservacaoColega(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32"></textarea>
+                <textarea autoFocus placeholder="Ex: Deixou a porta do freezer aberta..." value={observacaoColega} onChange={(e) => setObservacaoColega(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32 flex-shrink-0"></textarea>
                 
-                <button onClick={() => finishFlow(selectedColega)} className="w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg mt-auto">Finalizar Registro</button>
+                <button onClick={() => finishFlow(selectedColega)} className="mt-auto flex-shrink-0 w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg">Finalizar Registro</button>
               </div>
             )}
           </div>
@@ -669,7 +701,6 @@
         dadosDashboard.forEach(item => rankingProd[item.prod] = (rankingProd[item.prod] || 0) + (item.custo_total || 0));
         const topProdutos = Object.entries(rankingProd).sort((a,b)=>b[1]-a[1]).slice(0,3);
 
-        // FUNÇÃO DE EXCLUIR REGISTRO DA AUDITORIA
         const handleDeleteRegistro = async (id) => {
             if(window.confirm('Tem certeza que deseja excluir permanentemente este registro de perda? Esta ação não pode ser desfeita.')) {
                 if (supabase) {
@@ -686,7 +717,7 @@
             <div className="bg-slate-900 text-white p-6 pt-6 flex flex-col shadow-md z-10 flex-shrink-0">
                <div className="flex justify-between items-center mb-4">
                  <div><p className="text-brand text-[10px] font-bold tracking-widest mb-1 uppercase">Painel {user.funcao}</p><h2 className="text-xl font-bold">{lojaNome}</h2></div>
-                 <button onClick={() => {setUser(null); setView('select_loja');}} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700"><IconLogout/></button>
+                 <button onClick={handleLogout} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700"><IconLogout/></button>
                </div>
                
                {user.funcao === 'admin' && (
@@ -762,7 +793,6 @@
                                     </div>
                                     <p className="text-sm text-red-500 font-bold mt-1 bg-red-50 inline-block px-2 py-0.5 rounded truncate">{item.motivo}</p>
                                     
-                                    {/* DETALHES COM BOTÃO DE EXCLUIR */}
                                     <div className="mt-3 bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
                                         <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Responsável: <span className={`text-sm ${isAnonimo ? "text-orange-500" : "text-slate-800"}`}>{item.responsavel}</span></p>
                                         <p className="text-xs text-slate-600 mb-2 font-medium">Registrado por {item.relator} • {item.hora} • {lojaDoRegistro}</p>
@@ -772,7 +802,6 @@
                                             </div>
                                         )}
                                         
-                                        {/* BOTÃO DE EXCLUIR REGISTRO */}
                                         <button onClick={() => handleDeleteRegistro(item.id)} className="absolute top-3 right-3 text-red-400 hover:text-red-600 bg-white p-1.5 rounded-md shadow-sm border border-gray-100 active:scale-95 transition-transform">
                                             <IconDelete size={14} />
                                         </button>
