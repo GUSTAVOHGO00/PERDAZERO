@@ -467,12 +467,15 @@
             };
 
             if (supabase) {
-                const { error } = await supabase.from('historico').insert([objSalvar]);
-                if (error) alert("ERRO AO SALVAR REGISTRO: " + error.message);
+                const { data, error } = await supabase.from('historico').insert([objSalvar]).select();
+                if (error) {
+                    alert("ERRO AO SALVAR REGISTRO: " + error.message);
+                } else {
+                    setHistorico([data[0], ...historico]);
+                }
+            } else {
+                setHistorico([{ id: Date.now(), ...objSalvar }, ...historico]);
             }
-
-            const novoReg = { id: Date.now(), ...objSalvar };
-            setHistorico([novoReg, ...historico]);
             
             setIsUploading(false);
             alert('✅ Sucesso! Desperdício registrado.');
@@ -748,12 +751,13 @@
                                     </div>
                                     <p className="text-[10px] text-red-500 font-bold mt-1 bg-red-50 inline-block px-1 rounded truncate">{item.motivo}</p>
                                     
-                                    <div className="mt-2 bg-gray-50 p-2 rounded border border-gray-100">
-                                        <p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Responsável (Causa): <span className={isAnonimo ? "text-orange-500" : "text-slate-800"}>{item.responsavel}</span></p>
-                                        <p className="text-[9px] text-slate-400 mb-1">Registrado por {item.relator} • {item.hora} • {lojaDoRegistro}</p>
+                                    {/* TAMANHO DA FONTE AUMENTADO AQUI */}
+                                    <div className="mt-2 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                        <p className="text-[11px] text-slate-500 uppercase font-bold tracking-wider mb-1">Responsável (Causa): <span className={isAnonimo ? "text-orange-500" : "text-slate-800"}>{item.responsavel}</span></p>
+                                        <p className="text-[11px] text-slate-500 mb-2">Registrado por {item.relator} • {item.hora} • {lojaDoRegistro}</p>
                                         {item.observacao && (
-                                            <div className="bg-yellow-50 border border-yellow-100 p-1.5 rounded mt-1">
-                                                <p className="text-[10px] text-yellow-800 italic">"{item.observacao}"</p>
+                                            <div className="bg-yellow-50 border border-yellow-200 p-2 rounded mt-1">
+                                                <p className="text-xs text-yellow-800 italic">"{item.observacao}"</p>
                                             </div>
                                         )}
                                     </div>
@@ -778,11 +782,12 @@
           const objNovo = { nome: novaLojaNome };
           
           if (supabase) {
-             const { error } = await supabase.from('lojas').insert([objNovo]);
+             const { data, error } = await supabase.from('lojas').insert([objNovo]).select();
              if (error) return alert("ERRO AO SALVAR NO SUPABASE: " + error.message);
+             setLojas([data[0], ...lojas]);
+          } else {
+             setLojas([{ id: Date.now(), ...objNovo }, ...lojas]);
           }
-          
-          setLojas([{ id: Date.now(), ...objNovo }, ...lojas]);
           setNovaLojaNome('');
         };
 
@@ -857,11 +862,13 @@
           const objNovo = { nome: novoProdNome, icone: novoProdEmoji || '📦', custo: custoNum };
           
           if (supabase) { 
-              const { error } = await supabase.from('produtos').insert([objNovo]);
+              const { data, error } = await supabase.from('produtos').insert([objNovo]).select();
               if (error) return alert("ERRO AO SALVAR PRODUTO: " + error.message);
+              setProdutosLista([data[0], ...produtosLista]);
+          } else {
+              setProdutosLista([{ id: Date.now(), ...objNovo }, ...produtosLista]);
           }
           
-          setProdutosLista([{ id: Date.now(), ...objNovo }, ...produtosLista]);
           setNovoProdNome(''); setNovoProdEmoji('📦'); setNovoProdCusto('');
         };
 
@@ -952,11 +959,13 @@
           const objSalvar = { nome: novoMembroNome, codigo: novoMembroFuncao === 'operacional' ? '' : novoMembroCodigo, funcao: novoMembroFuncao, loja_id: lojaIdFormatado, avatar: novoMembroAvatar };
           
           if (supabase) { 
-              const { error } = await supabase.from('equipe').insert([objSalvar]);
+              const { data, error } = await supabase.from('equipe').insert([objSalvar]).select();
               if (error) return alert("ERRO AO SALVAR EQUIPE: " + error.message);
+              setEquipe([data[0], ...equipe]);
+          } else {
+              setEquipe([{ id: Date.now(), ...objSalvar }, ...equipe]);
           }
           
-          setEquipe([{ id: Date.now(), ...objSalvar }, ...equipe]);
           setNovoMembroNome(''); setNovoMembroCodigo(''); setNovoMembroAvatar('👨‍🍳');
         };
 
@@ -1127,7 +1136,7 @@
                                             const img = new Image();
                                             img.onload = () => {
                                                 const canvas = document.createElement('canvas');
-                                                const MAX_SIZE = 300; // Redimensiona para não estourar a memória
+                                                const MAX_SIZE = 300; 
                                                 let width = img.width;
                                                 let height = img.height;
 
@@ -1142,7 +1151,6 @@
                                                 const ctx = canvas.getContext('2d');
                                                 ctx.drawImage(img, 0, 0, width, height);
                                                 
-                                                // Converte para Base64 comprimido
                                                 const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
                                                 setLojaLogo(dataUrl);
                                             }
