@@ -59,9 +59,17 @@
 
     function App() {
       // --- CONFIGURAÇÕES DA REDE (Salvas no LocalStorage) ---
-      const [lojaNome, setLojaNome] = useState(() => localStorage.getItem('lojaNome') || "Roy's Store");
-      const [lojaLogo, setLojaLogo] = useState(() => localStorage.getItem('lojaLogo') || null); 
+      const [lojaNome, setLojaNome] = useState("Roy's Store");
+      const [lojaLogo, setLojaLogo] = useState(null); 
       
+      // Carrega Configurações Salvas Localmente ao iniciar
+      useEffect(() => {
+          const savedNome = localStorage.getItem('lojaNome');
+          const savedLogo = localStorage.getItem('lojaLogo');
+          if (savedNome) setLojaNome(savedNome);
+          if (savedLogo) setLojaLogo(savedLogo);
+      }, []);
+
       // --- ESTADOS GLOBAIS ---
       const [user, setUser] = useState(null); 
       const [view, setView] = useState('select_loja'); 
@@ -81,21 +89,17 @@
         async function fetchDados() {
             if (!supabase) return;
             try {
-                const { data: dbLojas, error: errLojas } = await supabase.from('lojas').select('*').order('id', { ascending: true });
-                if (errLojas) console.error("Erro Lojas:", errLojas);
-                else if (dbLojas) setLojas(dbLojas);
+                const { data: dbLojas } = await supabase.from('lojas').select('*').order('id', { ascending: true });
+                if (dbLojas) setLojas(dbLojas);
 
-                const { data: dbEquipe, error: errEquipe } = await supabase.from('equipe').select('*').order('id', { ascending: true });
-                if (errEquipe) console.error("Erro Equipe:", errEquipe);
-                else if (dbEquipe) setEquipe(dbEquipe);
+                const { data: dbEquipe } = await supabase.from('equipe').select('*').order('id', { ascending: true });
+                if (dbEquipe) setEquipe(dbEquipe);
 
-                const { data: dbProd, error: errProd } = await supabase.from('produtos').select('*').order('id', { ascending: true });
-                if (errProd) console.error("Erro Prod:", errProd);
-                else if (dbProd) setProdutosLista(dbProd);
+                const { data: dbProd } = await supabase.from('produtos').select('*').order('id', { ascending: true });
+                if (dbProd) setProdutosLista(dbProd);
 
-                const { data: dbHist, error: errHist } = await supabase.from('historico').select('*').order('timestamp', { ascending: false });
-                if (errHist) console.error("Erro Histórico:", errHist);
-                else if (dbHist) setHistorico(dbHist);
+                const { data: dbHist } = await supabase.from('historico').select('*').order('timestamp', { ascending: false });
+                if (dbHist) setHistorico(dbHist);
             } catch (err) {
                 console.error("Erro crítico ao puxar dados:", err);
             }
@@ -316,14 +320,14 @@
       // ==========================================
       if (view === 'select_loja') {
           return (
-              <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center animate-fade-in pt-safe-nav">
+              <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center animate-fade-in pt-safe-nav min-h-0">
                   <div className="text-center mb-10">
                       <RenderLogo size={80} className="bg-brand text-white mx-auto mb-4" />
                       <h1 className="text-3xl font-extrabold text-white tracking-tight">Perda<span className="text-brand">Zero</span></h1>
                       <p className="text-slate-400 mt-2 text-sm">{lojaNome} - Seleção de Unidade</p>
                   </div>
                   <h2 className="text-white text-xl font-bold mb-4 text-center">Onde você está trabalhando hoje?</h2>
-                  <div className="space-y-3 overflow-y-auto max-h-[40vh] hide-scrollbar">
+                  <div className="space-y-3 overflow-y-auto flex-1 min-h-0 hide-scrollbar pb-6">
                       {lojas.length === 0 && <p className="text-slate-500 text-center text-sm py-4">Nenhuma loja cadastrada ainda.</p>}
                       {lojas.map(loja => (
                           <button key={loja.id} onClick={() => { setCurrentLoja(loja); setView('select_user'); }} className="w-full bg-slate-800 border border-slate-700 text-white p-5 rounded-2xl font-bold text-lg hover:bg-brand transition-colors active:scale-95 shadow-lg flex justify-between items-center">
@@ -331,7 +335,7 @@
                           </button>
                       ))}
                   </div>
-                  <button onClick={() => { setCurrentLoja({id: null, nome: 'Acesso Administrativo'}); setView('select_user'); }} className="w-full mt-6 bg-transparent border-2 border-dashed border-slate-700 text-slate-400 p-4 rounded-2xl font-bold hover:text-white hover:border-slate-500 transition-colors">
+                  <button onClick={() => { setCurrentLoja({id: null, nome: 'Acesso Administrativo'}); setView('select_user'); }} className="w-full mt-2 bg-transparent border-2 border-dashed border-slate-700 text-slate-400 p-4 rounded-2xl font-bold hover:text-white hover:border-slate-500 transition-colors pb-safe-nav">
                       Acesso Administrativo
                   </button>
               </div>
@@ -344,14 +348,14 @@
       if (view === 'select_user') {
           const equipeDaLoja = equipe.filter(e => e.loja_id === currentLoja?.id || e.funcao === 'admin');
           return (
-              <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up relative">
-                  <div className="bg-brand p-6 pt-10 pb-8 rounded-b-[40px] shadow-lg flex flex-col justify-between text-white text-center pt-safe-nav">
+              <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up relative min-h-0">
+                  <div className="bg-brand p-6 pt-10 pb-8 rounded-b-[40px] shadow-lg flex flex-col justify-between text-white text-center pt-safe-nav flex-shrink-0">
                       <p className="text-green-100 text-sm font-bold tracking-widest uppercase mb-1">{currentLoja?.nome || "Painel Geral"}</p>
                       <h2 className="text-3xl font-black">Quem é você?</h2>
                   </div>
-                  <div className="flex-1 p-6 overflow-y-auto hide-scrollbar">
+                  <div className="flex-1 p-6 overflow-y-auto hide-scrollbar min-h-0">
                       <p className="text-center text-slate-500 font-medium mb-6">Toque no seu nome para continuar</p>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-4 pb-8">
                           {equipeDaLoja.length === 0 && <p className="text-slate-400 col-span-2 text-center py-4">Nenhum funcionário nesta loja.</p>}
                           {equipeDaLoja.map(membro => (
                               <button key={membro.id} onClick={() => handleSelectUser(membro)} className="bg-white border border-gray-200 p-6 rounded-3xl flex flex-col items-center shadow-sm hover:border-brand hover:shadow-md active:scale-95 transition-all">
@@ -362,7 +366,7 @@
                           ))}
                       </div>
                   </div>
-                  <button onClick={() => setView('select_loja')} className="p-4 text-slate-400 font-bold text-sm text-center w-full pb-safe-nav">Voltar / Trocar de Loja</button>
+                  <button onClick={() => setView('select_loja')} className="p-4 text-slate-400 font-bold text-sm text-center w-full flex-shrink-0 pb-safe-nav bg-white border-t border-gray-200">Voltar / Trocar de Loja</button>
               </div>
           );
       }
@@ -532,17 +536,17 @@
             )}
 
             {flowStep === 2 && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50">
-                <h3 className="text-xl font-bold text-slate-800 mb-4">O que está na foto?</h3>
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex gap-3 items-center">
+              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 min-h-0">
+                <h3 className="text-xl font-bold text-slate-800 mb-4 flex-shrink-0">O que está na foto?</h3>
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex gap-3 items-center flex-shrink-0">
                     <div className="text-4xl w-16 h-16 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center shadow-inner">{customProductEmoji}</div>
                     <div className="flex-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Buscar ou Digitar Produto</label>
                         <input autoFocus placeholder="Ex: Camarão" value={customProductName} onChange={(e) => {setCustomProductName(e.target.value); setCustomProductEmoji(buscarEmoji(e.target.value));}} className="w-full text-lg font-bold text-slate-800 focus:outline-none placeholder:font-normal"/>
                     </div>
                 </div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Ou escolha da lista:</div>
-                <div className="grid grid-cols-2 gap-3 overflow-y-auto pb-6 hide-scrollbar flex-1">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex-shrink-0">Ou escolha da lista:</div>
+                <div className="grid grid-cols-2 gap-3 overflow-y-auto pb-6 hide-scrollbar flex-1 min-h-0">
                   {produtosLista.map(p => (
                     <button key={p.id} onClick={() => { setCustomProductName(p.nome); setCustomProductEmoji(p.icone); setRegistro({...registro, produto: p.nome, custo_unitario: p.custo || 0, icone: p.icone}); setFlowStep(3); }} className="bg-white border border-gray-200 p-4 rounded-2xl flex items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
                         <span className="text-3xl mr-3">{p.icone}</span><span className="font-bold text-slate-700 text-sm text-left leading-tight">{p.nome}</span>
@@ -550,7 +554,7 @@
                   ))}
                 </div>
                 {customProductName && (
-                    <button onClick={() => { setRegistro({...registro, produto: customProductName, custo_unitario: 0, icone: customProductEmoji}); setFlowStep(3); }} className="w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg mt-4 animate-fade-in">Confirmar: {customProductName}</button>
+                    <button onClick={() => { setRegistro({...registro, produto: customProductName, custo_unitario: 0, icone: customProductEmoji}); setFlowStep(3); }} className="w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg mt-4 animate-fade-in flex-shrink-0">Confirmar: {customProductName}</button>
                 )}
               </div>
             )}
@@ -575,10 +579,10 @@
             )}
 
             {flowStep === 4 && !isCustomMotivo && (
-              <div className="flex-1 flex flex-col p-4 animate-slide-up bg-gray-50">
+              <div className="flex-1 flex flex-col p-4 animate-slide-up bg-gray-50 min-h-0">
                 <h3 className="text-xl font-bold text-slate-800 mb-1 px-2">Por que foi perdido?</h3>
                 <p className="text-slate-500 text-sm mb-6 px-2">Selecione o motivo.</p>
-                <div className="grid grid-cols-2 gap-3 pb-6 px-2">
+                <div className="grid grid-cols-2 gap-3 pb-6 px-2 overflow-y-auto flex-1 min-h-0 hide-scrollbar">
                   {motivosLista.map(m => (
                     <button key={m.id} onClick={() => { m.nome === 'Outro' ? setIsCustomMotivo(true) : proceedToStep5(m.nome); }} className="bg-white border border-gray-200 p-5 rounded-3xl flex flex-col items-center shadow-sm active:scale-95 transition-transform"><div className={`w-14 h-14 rounded-full flex items-center justify-center text-3xl mb-3 shadow-inner ${m.cor}`}>{m.icone}</div><span className="font-bold text-slate-700 text-sm text-center">{m.nome}</span></button>
                   ))}
@@ -615,11 +619,11 @@
             )}
 
             {flowStep === 5 && showColegasList && !selectedColega && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50">
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Selecione o Colega:</h3>
-                <p className="text-slate-500 text-sm mb-6">Esta informação é confidencial.</p>
+              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 min-h-0">
+                <h3 className="text-xl font-bold text-slate-800 mb-2 flex-shrink-0">Selecione o Colega:</h3>
+                <p className="text-slate-500 text-sm mb-6 flex-shrink-0">Esta informação é confidencial.</p>
 
-                <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-6 hide-scrollbar flex-1">
+                <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-6 hide-scrollbar flex-1 min-h-0">
                   {equipe.filter(e => e.loja_id === currentLoja.id).map(c => (
                     <button key={c.id} onClick={() => setSelectedColega(c.nome)} className="bg-white border border-gray-200 p-4 rounded-2xl flex flex-col items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
                         <span className="text-4xl mb-2">{c.avatar || '👤'}</span>
@@ -663,9 +667,9 @@
         const topProdutos = Object.entries(rankingProd).sort((a,b)=>b[1]-a[1]).slice(0,3);
 
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav relative pt-safe-nav">
+          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav relative pt-safe-nav min-h-0">
             <PhotoModal />
-            <div className="bg-slate-900 text-white p-6 pt-6 flex flex-col shadow-md z-10">
+            <div className="bg-slate-900 text-white p-6 pt-6 flex flex-col shadow-md z-10 flex-shrink-0">
                <div className="flex justify-between items-center mb-4">
                  <div><p className="text-brand text-[10px] font-bold tracking-widest mb-1 uppercase">Painel {user.funcao}</p><h2 className="text-xl font-bold">{lojaNome}</h2></div>
                  <button onClick={() => {setUser(null); setView('select_loja');}} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700"><IconLogout/></button>
@@ -687,7 +691,7 @@
                </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar min-h-0">
                 <div className="grid grid-cols-2 gap-3">
                     <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-red-500"><p className="text-slate-400 text-[10px] font-bold tracking-wider uppercase mb-1">Itens Perdidos</p><p className="text-2xl font-black text-slate-800">{dadosDashboard.length}</p></div>
                     <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-brand"><p className="text-slate-400 text-[10px] font-bold tracking-wider uppercase mb-1">Prejuízo (R$)</p><p className="text-2xl font-black text-slate-800">{formatarMoeda(totalPrejuizo).replace('R$', '').trim()}</p></div>
@@ -803,9 +807,9 @@
         };
 
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav pt-safe-nav relative">
-            <div className="bg-slate-900 text-white p-6 pt-6 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Unidades Operacionais</h2></div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
+          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav pt-safe-nav relative min-h-0">
+            <div className="bg-slate-900 text-white p-6 pt-6 shadow-md z-10 sticky top-0 flex-shrink-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Unidades Operacionais</h2></div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar min-h-0">
                 
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6">
                     <h3 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">Cadastrar Nova Unidade</h3>
@@ -888,9 +892,9 @@
         };
 
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav pt-safe-nav relative">
-            <div className="bg-slate-900 text-white p-6 pt-6 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Cardápio de Perdas</h2></div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
+          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav pt-safe-nav relative min-h-0">
+            <div className="bg-slate-900 text-white p-6 pt-6 shadow-md z-10 sticky top-0 flex-shrink-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Cardápio de Perdas</h2></div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar min-h-0">
                 
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
                     <h3 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">Adicionar Novo</h3>
@@ -985,9 +989,9 @@
         };
 
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav pt-safe-nav relative">
-            <div className="bg-slate-900 text-white p-6 pt-6 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Equipe Ativa</h2></div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
+          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav pt-safe-nav relative min-h-0">
+            <div className="bg-slate-900 text-white p-6 pt-6 shadow-md z-10 sticky top-0 flex-shrink-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">GESTÃO</p><h2 className="text-2xl font-bold">Equipe Ativa</h2></div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar min-h-0">
                 
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6">
                     <h3 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">Cadastrar Colaborador</h3>
@@ -1101,9 +1105,9 @@
         };
 
         return (
-          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav pt-safe-nav relative">
-            <div className="bg-slate-900 text-white p-6 pt-6 shadow-md z-10 sticky top-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">CONFIGURAÇÕES</p><h2 className="text-2xl font-bold">Ajustes do Sistema</h2></div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
+          <div className="flex-1 flex flex-col bg-gray-100 animate-slide-up h-full pb-safe-nav pt-safe-nav relative min-h-0">
+            <div className="bg-slate-900 text-white p-6 pt-6 shadow-md z-10 sticky top-0 flex-shrink-0"><p className="text-brand text-xs font-bold tracking-widest mb-1">CONFIGURAÇÕES</p><h2 className="text-2xl font-bold">Ajustes do Sistema</h2></div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 min-h-0">
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
                     <h3 className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">Identidade Visual</h3>
                     
@@ -1117,9 +1121,34 @@
                                 Alterar Logo
                                 <input type="file" accept="image/*" className="hidden" onChange={(e) => {
                                     if(e.target.files && e.target.files[0]) { 
+                                        const file = e.target.files[0];
                                         const reader = new FileReader();
-                                        reader.onloadend = () => setLojaLogo(reader.result);
-                                        reader.readAsDataURL(e.target.files[0]);
+                                        reader.onload = (event) => {
+                                            const img = new Image();
+                                            img.onload = () => {
+                                                const canvas = document.createElement('canvas');
+                                                const MAX_SIZE = 300; // Redimensiona para não estourar a memória
+                                                let width = img.width;
+                                                let height = img.height;
+
+                                                if (width > height) {
+                                                    if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+                                                } else {
+                                                    if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+                                                }
+
+                                                canvas.width = width;
+                                                canvas.height = height;
+                                                const ctx = canvas.getContext('2d');
+                                                ctx.drawImage(img, 0, 0, width, height);
+                                                
+                                                // Converte para Base64 comprimido
+                                                const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                                                setLojaLogo(dataUrl);
+                                            }
+                                            img.src = event.target.result;
+                                        };
+                                        reader.readAsDataURL(file);
                                     }
                                 }} />
                             </label>
