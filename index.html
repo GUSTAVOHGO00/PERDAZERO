@@ -746,18 +746,18 @@
                                 )}
                                 <div className="flex-1 overflow-hidden">
                                     <div className="flex justify-between items-start">
-                                        <p className="font-bold text-sm text-slate-800 truncate">{item.img} {item.prod} <span className="text-brand text-xs">({item.qtd}{item.uni})</span></p>
-                                        <div className="text-xs font-black text-slate-800">{formatarMoeda(item.custo_total)}</div>
+                                        <p className="font-bold text-base text-slate-800 truncate">{item.img} {item.prod} <span className="text-brand text-sm">({item.qtd}{item.uni})</span></p>
+                                        <div className="text-sm font-black text-slate-800">{formatarMoeda(item.custo_total)}</div>
                                     </div>
-                                    <p className="text-[10px] text-red-500 font-bold mt-1 bg-red-50 inline-block px-1 rounded truncate">{item.motivo}</p>
+                                    <p className="text-xs text-red-500 font-bold mt-1 bg-red-50 inline-block px-2 py-0.5 rounded truncate">{item.motivo}</p>
                                     
                                     {/* TAMANHO DA FONTE AUMENTADO AQUI */}
-                                    <div className="mt-2 bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                        <p className="text-[11px] text-slate-500 uppercase font-bold tracking-wider mb-1">Responsável (Causa): <span className={isAnonimo ? "text-orange-500" : "text-slate-800"}>{item.responsavel}</span></p>
-                                        <p className="text-[11px] text-slate-500 mb-2">Registrado por {item.relator} • {item.hora} • {lojaDoRegistro}</p>
+                                    <div className="mt-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                        <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Responsável: <span className={`text-sm ${isAnonimo ? "text-orange-500" : "text-slate-800"}`}>{item.responsavel}</span></p>
+                                        <p className="text-xs text-slate-600 mb-2 font-medium">Registrado por {item.relator} • {item.hora} • {lojaDoRegistro}</p>
                                         {item.observacao && (
-                                            <div className="bg-yellow-50 border border-yellow-200 p-2 rounded mt-1">
-                                                <p className="text-xs text-yellow-800 italic">"{item.observacao}"</p>
+                                            <div className="bg-yellow-50 border border-yellow-200 p-2.5 rounded mt-2">
+                                                <p className="text-sm text-yellow-800 italic font-medium">"{item.observacao}"</p>
                                             </div>
                                         )}
                                     </div>
