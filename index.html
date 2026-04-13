@@ -188,11 +188,12 @@
         { id: 6, nome: 'Outro', icone: '➕', cor: 'bg-gray-100 text-gray-600' }
       ];
 
-      // Referências Gráficos
+      // Referências
       const chartBarRef = useRef(null);
       const chartDoughnutRef = useRef(null);
       const chartBarInstance = useRef(null);
       const chartDoughnutInstance = useRef(null);
+      const fileInputRef = useRef(null); // Ref adicionada para garantir o clique da câmera
 
       // Ícones 
       const IconShield = () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>;
@@ -520,7 +521,7 @@
         }
 
         return (
-          <div className="flex-1 flex flex-col bg-white pb-safe-nav">
+          <div className="flex-1 flex flex-col bg-white pb-safe-nav min-h-0">
             <div className="p-4 border-b flex items-center shadow-sm z-10 pt-safe-nav shrink-0">
               <button onClick={() => { 
                   if(flowStep === 5 && selectedColega) { setSelectedColega(null); setObservacaoColega(''); return; }
@@ -532,7 +533,7 @@
             </div>
 
             {flowStep === 1 && (
-              <div className="flex-1 flex flex-col items-center justify-center p-6 animate-slide-up text-center overflow-y-auto">
+              <div className="flex-1 flex flex-col items-center justify-center p-6 animate-slide-up text-center overflow-y-auto hide-scrollbar">
                 <h3 className="text-2xl font-bold text-slate-800 mb-8 shrink-0">Tire uma foto do item</h3>
                 
                 {registro.foto_url_local ? (
@@ -546,17 +547,16 @@
                     </div>
                 )}
 
-                <label className="w-full py-5 bg-brand text-white font-bold rounded-2xl text-xl flex items-center justify-center shadow-xl active:scale-95 cursor-pointer transition-transform shrink-0">
+                <button onClick={() => fileInputRef.current && fileInputRef.current.click()} className="w-full py-5 bg-brand text-white font-bold rounded-2xl text-xl flex items-center justify-center shadow-xl active:scale-95 transition-transform shrink-0">
                   <IconCameraSm/> <span className="ml-2">{registro.foto_url_local ? 'Tirar Outra Foto' : 'Abrir Câmera'}</span>
-                  {/* Removido o capture="environment" para Android não matar a aba por falta de RAM */}
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => { 
-                      if(e.target.files && e.target.files[0]) {
-                          const file = e.target.files[0];
-                          const urlLocal = URL.createObjectURL(file);
-                          setRegistro({...registro, foto_arquivo: file, foto_url_local: urlLocal}); 
-                      }
-                  }}/>
-                </label>
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { 
+                    if(e.target.files && e.target.files[0]) {
+                        const file = e.target.files[0];
+                        const urlLocal = URL.createObjectURL(file);
+                        setRegistro({...registro, foto_arquivo: file, foto_url_local: urlLocal}); 
+                    }
+                }}/>
 
                 {registro.foto_url_local && (
                      <button onClick={() => setFlowStep(2)} className="mt-4 w-full py-5 bg-slate-900 text-white font-bold rounded-2xl text-xl shadow-xl active:scale-95 transition-transform animate-fade-in shrink-0">Avançar com esta foto</button>
@@ -567,17 +567,18 @@
             )}
 
             {flowStep === 2 && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 min-h-0">
-                <h3 className="text-xl font-bold text-slate-800 mb-4 flex-shrink-0">O que está na foto?</h3>
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex gap-3 items-center flex-shrink-0">
+              /* AQUI ESTÁ A CORREÇÃO DE ROLAGEM DA LISTA DE PRODUTOS */
+              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
+                <h3 className="text-xl font-bold text-slate-800 mb-4 shrink-0">O que está na foto?</h3>
+                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex gap-3 items-center shrink-0">
                     <div className="text-4xl w-16 h-16 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center shadow-inner">{customProductEmoji}</div>
                     <div className="flex-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Buscar ou Digitar Produto</label>
                         <input autoFocus placeholder="Ex: Camarão" value={customProductName} onChange={(e) => {setCustomProductName(e.target.value); setCustomProductEmoji(buscarEmoji(e.target.value));}} className="w-full text-lg font-bold text-slate-800 focus:outline-none placeholder:font-normal"/>
                     </div>
                 </div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex-shrink-0">Ou escolha da lista:</div>
-                <div className="grid grid-cols-2 gap-3 overflow-y-auto pb-6 hide-scrollbar flex-1 min-h-0">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 shrink-0">Ou escolha da lista:</div>
+                <div className="grid grid-cols-2 gap-3 shrink-0 pb-6">
                   {produtosLista.map(p => (
                     <button key={p.id} onClick={() => { setCustomProductName(p.nome); setCustomProductEmoji(p.icone); setRegistro({...registro, produto: p.nome, custo_unitario: p.custo || 0, icone: p.icone}); setFlowStep(3); }} className="bg-white border border-gray-200 p-4 rounded-2xl flex items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
                         <span className="text-3xl mr-3">{p.icone}</span><span className="font-bold text-slate-700 text-sm text-left leading-tight">{p.nome}</span>
@@ -585,39 +586,39 @@
                   ))}
                 </div>
                 {customProductName && (
-                    <button onClick={() => { setRegistro({...registro, produto: customProductName, custo_unitario: 0, icone: customProductEmoji}); setFlowStep(3); }} className="w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg mt-4 animate-fade-in flex-shrink-0">Confirmar: {customProductName}</button>
+                    <button onClick={() => { setRegistro({...registro, produto: customProductName, custo_unitario: 0, icone: customProductEmoji}); setFlowStep(3); }} className="w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg mt-auto shrink-0">Confirmar: {customProductName}</button>
                 )}
               </div>
             )}
 
             {flowStep === 3 && (
-              /* AQUI ESTÁ A CORREÇÃO DO IPHONE: overflow-y-auto e flex-shrink-0 no botão */
               <div className="flex-1 flex flex-col p-6 items-center animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
-                <h3 className="text-lg font-bold text-slate-800 mb-1 flex-shrink-0">Quantidade de</h3>
-                <p className="text-brand font-extrabold text-xl mb-4 text-center flex-shrink-0">{registro.icone} {registro.produto}</p>
-                <div className="flex bg-gray-200 p-1.5 rounded-2xl mb-6 w-full max-w-xs flex-shrink-0">
+                <h3 className="text-lg font-bold text-slate-800 mb-1 shrink-0">Quantidade de</h3>
+                <p className="text-brand font-extrabold text-xl mb-4 text-center shrink-0">{registro.icone} {registro.produto}</p>
+                <div className="flex bg-gray-200 p-1.5 rounded-2xl mb-6 w-full max-w-xs shrink-0">
                   <button onClick={()=>setRegistro({...registro, unidade: 'un'})} className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'un' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Unid.</button>
                   <button onClick={()=>setRegistro({...registro, unidade: 'kg'})} className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'kg' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Kg</button>
                   <button onClick={()=>setRegistro({...registro, unidade: 'L'})}  className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'L' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Litro</button>
                 </div>
-                <div className="text-5xl font-black text-slate-800 mb-6 h-14 flex items-baseline flex-shrink-0">{registro.qtd || '0'} <span className="text-2xl text-slate-400 ml-2 font-bold">{registro.unidade}</span></div>
+                <div className="text-5xl font-black text-slate-800 mb-6 h-14 flex items-baseline shrink-0">{registro.qtd || '0'} <span className="text-2xl text-slate-400 ml-2 font-bold">{registro.unidade}</span></div>
                 
-                <div className="grid grid-cols-3 gap-2 w-full max-w-xs mb-6 flex-shrink-0">
+                <div className="grid grid-cols-3 gap-2 w-full max-w-xs mb-6 shrink-0">
                   {[1,2,3,4,5,6,7,8,9].map(n => <button key={n} onClick={() => setRegistro({...registro, qtd: registro.qtd + n})} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">{n}</button>)}
                   <button onClick={() => { if (!registro.qtd.includes(',')) setRegistro({...registro, qtd: registro.qtd + ','}); }} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">,</button>
                   <button onClick={() => setRegistro({...registro, qtd: registro.qtd + '0'})} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">0</button>
                   <button onClick={() => setRegistro({...registro, qtd: registro.qtd.slice(0,-1)})} className="bg-red-50 border border-red-100 text-red-500 py-3 rounded-2xl flex justify-center items-center shadow-sm active:bg-red-100"><IconDelete/></button>
                 </div>
                 
-                <button onClick={()=>setFlowStep(4)} disabled={!registro.qtd} className={`mt-auto flex-shrink-0 w-full max-w-xs py-4 rounded-2xl font-bold text-white text-lg transition-all ${registro.qtd ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>AVANÇAR</button>
+                <button onClick={()=>setFlowStep(4)} disabled={!registro.qtd} className={`mt-auto shrink-0 w-full max-w-xs py-4 rounded-2xl font-bold text-white text-lg transition-all ${registro.qtd ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>AVANÇAR</button>
               </div>
             )}
 
             {flowStep === 4 && !isCustomMotivo && (
-              <div className="flex-1 flex flex-col p-4 animate-slide-up bg-gray-50 min-h-0">
-                <h3 className="text-xl font-bold text-slate-800 mb-1 px-2 flex-shrink-0">Por que foi perdido?</h3>
-                <p className="text-slate-500 text-sm mb-6 px-2 flex-shrink-0">Selecione o motivo.</p>
-                <div className="grid grid-cols-2 gap-3 pb-6 px-2 overflow-y-auto flex-1 min-h-0 hide-scrollbar">
+              /* AQUI TAMBÉM ROLAGEM PROTEGIDA PARA LISTA DE MOTIVOS */
+              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
+                <h3 className="text-xl font-bold text-slate-800 mb-1 shrink-0">Por que foi perdido?</h3>
+                <p className="text-slate-500 text-sm mb-6 shrink-0">Selecione o motivo.</p>
+                <div className="grid grid-cols-2 gap-3 shrink-0 pb-6">
                   {motivosLista.map(m => (
                     <button key={m.id} onClick={() => { m.nome === 'Outro' ? setIsCustomMotivo(true) : proceedToStep5(m.nome); }} className="bg-white border border-gray-200 p-5 rounded-3xl flex flex-col items-center shadow-sm active:scale-95 transition-transform"><div className={`w-14 h-14 rounded-full flex items-center justify-center text-3xl mb-3 shadow-inner ${m.cor}`}>{m.icone}</div><span className="font-bold text-slate-700 text-sm text-center">{m.nome}</span></button>
                   ))}
@@ -627,15 +628,15 @@
 
             {flowStep === 4 && isCustomMotivo && (
               <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
-                <h3 className="text-xl font-bold text-slate-800 mb-2 flex-shrink-0">Descrever Motivo</h3>
-                <textarea autoFocus placeholder="Ex: A geladeira desligou..." value={customMotivoName} onChange={(e) => setCustomMotivoName(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32 flex-shrink-0"></textarea>
-                <button onClick={() => proceedToStep5('Outro')} disabled={customMotivoName.trim() === ''} className={`mt-auto flex-shrink-0 w-full py-4 rounded-2xl font-bold text-white text-lg transition-all ${customMotivoName.trim() !== '' ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>Avançar</button>
+                <h3 className="text-xl font-bold text-slate-800 mb-2 shrink-0">Descrever Motivo</h3>
+                <textarea autoFocus placeholder="Ex: A geladeira desligou..." value={customMotivoName} onChange={(e) => setCustomMotivoName(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32 shrink-0"></textarea>
+                <button onClick={() => proceedToStep5('Outro')} disabled={customMotivoName.trim() === ''} className={`mt-auto shrink-0 w-full py-4 rounded-2xl font-bold text-white text-lg transition-all ${customMotivoName.trim() !== '' ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>Avançar</button>
               </div>
             )}
 
             {/* PASSO 5 - RESPONSABILIDADE */}
             {flowStep === 5 && !showColegasList && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 items-center justify-center text-center overflow-y-auto">
+              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 items-center justify-center text-center overflow-y-auto hide-scrollbar">
                 <h3 className="text-3xl font-black text-slate-800 mb-2 shrink-0">Você sabe quem foi?</h3>
                 <p className="text-slate-500 font-medium mb-8 shrink-0">Fique tranquilo(a)! Se você apontar um colega, essa informação é confidencial e só a gerência verá.</p>
                 
@@ -654,11 +655,12 @@
             )}
 
             {flowStep === 5 && showColegasList && !selectedColega && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 min-h-0">
-                <h3 className="text-xl font-bold text-slate-800 mb-2 flex-shrink-0">Selecione o Colega:</h3>
-                <p className="text-slate-500 text-sm mb-6 flex-shrink-0">Esta informação é confidencial.</p>
+              /* AQUI TAMBÉM ROLAGEM PROTEGIDA PARA LISTA DE FUNCIONÁRIOS */
+              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
+                <h3 className="text-xl font-bold text-slate-800 mb-2 shrink-0">Selecione o Colega:</h3>
+                <p className="text-slate-500 text-sm mb-6 shrink-0">Esta informação é confidencial.</p>
 
-                <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-6 hide-scrollbar flex-1 min-h-0">
+                <div className="grid grid-cols-2 gap-4 shrink-0 pb-6">
                   {equipe.filter(e => e.loja_id === currentLoja?.id).map(c => (
                     <button key={c.id} onClick={() => setSelectedColega(c.nome)} className="bg-white border border-gray-200 p-4 rounded-2xl flex flex-col items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
                         <span className="text-4xl mb-2">{c.avatar || '👤'}</span>
@@ -671,12 +673,12 @@
 
             {flowStep === 5 && selectedColega && (
               <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
-                <h3 className="text-xl font-bold text-slate-800 mb-2 flex-shrink-0">Responsável: {selectedColega.split(' ')[0]}</h3>
-                <p className="text-slate-500 text-sm mb-6 flex-shrink-0">Quer adicionar alguma observação? (Opcional)</p>
+                <h3 className="text-xl font-bold text-slate-800 mb-2 shrink-0">Responsável: {selectedColega.split(' ')[0]}</h3>
+                <p className="text-slate-500 text-sm mb-6 shrink-0">Quer adicionar alguma observação? (Opcional)</p>
                 
-                <textarea autoFocus placeholder="Ex: Deixou a porta do freezer aberta..." value={observacaoColega} onChange={(e) => setObservacaoColega(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32 flex-shrink-0"></textarea>
+                <textarea autoFocus placeholder="Ex: Deixou a porta do freezer aberta..." value={observacaoColega} onChange={(e) => setObservacaoColega(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32 shrink-0"></textarea>
                 
-                <button onClick={() => finishFlow(selectedColega)} className="mt-auto flex-shrink-0 w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg">Finalizar Registro</button>
+                <button onClick={() => finishFlow(selectedColega)} className="mt-auto shrink-0 w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg">Finalizar Registro</button>
               </div>
             )}
           </div>
