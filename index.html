@@ -58,17 +58,9 @@
     catch (e) { console.error("Erro Supabase:", e); }
 
     function App() {
-      // --- CONFIGURAÇÕES DA REDE (Salvas no LocalStorage) ---
-      const [lojaNome, setLojaNome] = useState("Roy's Store");
+      // --- CONFIGURAÇÕES DA REDE ---
+      const [lojaNome, setLojaNome] = useState("Carregando...");
       const [lojaLogo, setLojaLogo] = useState(null); 
-      
-      // Carrega Configurações Salvas Localmente ao iniciar
-      useEffect(() => {
-          const savedNome = localStorage.getItem('lojaNome');
-          const savedLogo = localStorage.getItem('lojaLogo');
-          if (savedNome) setLojaNome(savedNome);
-          if (savedLogo) setLojaLogo(savedLogo);
-      }, []);
 
       // --- ESTADOS GLOBAIS COM PERSISTÊNCIA BÁSICA DE SESSÃO ---
       const [user, setUser] = useState(() => {
@@ -105,6 +97,15 @@
         async function fetchDados() {
             if (!supabase) return;
             try {
+                // Busca a Identidade Visual Global
+                const { data: dbConfig } = await supabase.from('configuracoes').select('*').eq('id', 1).single();
+                if (dbConfig) {
+                    setLojaNome(dbConfig.nome_rede || "Roy's Store");
+                    setLojaLogo(dbConfig.logo_rede || null);
+                } else {
+                    setLojaNome("Roy's Store"); // Fallback se a tabela estiver vazia
+                }
+
                 const { data: dbLojas } = await supabase.from('lojas').select('*').order('id', { ascending: true });
                 if (dbLojas) setLojas(dbLojas);
 
@@ -118,6 +119,7 @@
                 if (dbHist) setHistorico(dbHist);
             } catch (err) {
                 console.error("Erro crítico ao puxar dados:", err);
+                setLojaNome("Roy's Store"); // Fallback em caso de erro
             }
         }
         fetchDados();
@@ -193,7 +195,7 @@
       const chartDoughnutRef = useRef(null);
       const chartBarInstance = useRef(null);
       const chartDoughnutInstance = useRef(null);
-      const fileInputRef = useRef(null); // Ref adicionada para garantir o clique da câmera
+      const fileInputRef = useRef(null); 
 
       // Ícones 
       const IconShield = () => <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>;
@@ -207,8 +209,25 @@
       const IconUsers = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>;
       const IconStore = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 7 4.41-2.205a2 2 0 0 1 2 0L12 7l3.59-1.795a2 2 0 0 1 2 0L22 7v14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7Z"></path><path d="M12 22V7"></path><path d="M2 13h20"></path><path d="M2 17h20"></path></svg>;
       const IconSettings = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
-      const IconEdit = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
-      const IconLock = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>;
+      
+      // Função para formatar a data relativa inteligente (Hoje, Ontem, ou Data Completa)
+      const formatarDataHora = (timestamp) => {
+          if (!timestamp) return '';
+          const data = new Date(timestamp);
+          const hoje = new Date();
+          const ontem = new Date();
+          ontem.setDate(hoje.getDate() - 1);
+
+          const hora = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+          if (data.toDateString() === hoje.toDateString()) {
+              return `Hoje, ${hora}`;
+          } else if (data.toDateString() === ontem.toDateString()) {
+              return `Ontem, ${hora}`;
+          } else {
+              return `${data.toLocaleDateString('pt-BR')} às ${hora}`;
+          }
+      };
 
       const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
 
@@ -482,9 +501,8 @@
 
             const dataAtual = new Date();
             const horaFormatada = dataAtual.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            const horaString = `Hoje, ${horaFormatada}`;
+            const horaString = `Hoje, ${horaFormatada}`; // Mantido apenas para compatibilidade de banco antigo
 
-            // Usa a loja selecionada pela sessão atual ou a loja vinculada ao usuário
             const idLojaOperacao = currentLoja?.id || user?.loja_id || 0;
 
             const objSalvar = {
@@ -533,152 +551,175 @@
             </div>
 
             {flowStep === 1 && (
-              <div className="flex-1 flex flex-col items-center justify-center p-6 animate-slide-up text-center overflow-y-auto hide-scrollbar">
-                <h3 className="text-2xl font-bold text-slate-800 mb-8 shrink-0">Tire uma foto do item</h3>
+              <div className="flex-1 flex flex-col animate-slide-up bg-gray-50 min-h-0">
+                <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col items-center p-6">
+                    <h3 className="text-2xl font-bold text-slate-800 mb-8 shrink-0">Tire uma foto do item</h3>
+                    
+                    {registro.foto_url_local ? (
+                        <div className="w-full max-w-xs relative mb-8 rounded-2xl overflow-hidden shadow-lg border-4 border-brand shrink-0">
+                            <img src={registro.foto_url_local} className="w-full h-48 object-cover" />
+                            <div className="absolute bottom-2 right-2 bg-brand text-white text-xs font-bold px-2 py-1 rounded">Câmera Ativa</div>
+                        </div>
+                    ) : (
+                        <div className="w-full max-w-xs h-48 bg-gray-100 rounded-2xl mb-8 flex items-center justify-center border-2 border-dashed border-gray-300 text-gray-400 shrink-0">
+                            <IconCameraLg />
+                        </div>
+                    )}
+
+                    <button onClick={() => fileInputRef.current && fileInputRef.current.click()} className="w-full max-w-xs py-5 bg-brand text-white font-bold rounded-2xl text-xl flex items-center justify-center shadow-xl active:scale-95 transition-transform shrink-0">
+                    <IconCameraSm/> <span className="ml-2">{registro.foto_url_local ? 'Tirar Outra Foto' : 'Abrir Câmera'}</span>
+                    </button>
+                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { 
+                        if(e.target.files && e.target.files[0]) {
+                            const file = e.target.files[0];
+                            const urlLocal = URL.createObjectURL(file);
+                            setRegistro({...registro, foto_arquivo: file, foto_url_local: urlLocal}); 
+                        }
+                    }}/>
+                </div>
                 
-                {registro.foto_url_local ? (
-                    <div className="w-full max-w-xs relative mb-8 rounded-2xl overflow-hidden shadow-lg border-4 border-brand shrink-0">
-                        <img src={registro.foto_url_local} className="w-full h-48 object-cover" />
-                        <div className="absolute bottom-2 right-2 bg-brand text-white text-xs font-bold px-2 py-1 rounded">Câmera Ativa</div>
-                    </div>
-                ) : (
-                    <div className="w-full max-w-xs h-48 bg-gray-100 rounded-2xl mb-8 flex items-center justify-center border-2 border-dashed border-gray-300 text-gray-400 shrink-0">
-                        <IconCameraLg />
-                    </div>
-                )}
-
-                <button onClick={() => fileInputRef.current && fileInputRef.current.click()} className="w-full py-5 bg-brand text-white font-bold rounded-2xl text-xl flex items-center justify-center shadow-xl active:scale-95 transition-transform shrink-0">
-                  <IconCameraSm/> <span className="ml-2">{registro.foto_url_local ? 'Tirar Outra Foto' : 'Abrir Câmera'}</span>
-                </button>
-                <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { 
-                    if(e.target.files && e.target.files[0]) {
-                        const file = e.target.files[0];
-                        const urlLocal = URL.createObjectURL(file);
-                        setRegistro({...registro, foto_arquivo: file, foto_url_local: urlLocal}); 
-                    }
-                }}/>
-
-                {registro.foto_url_local && (
-                     <button onClick={() => setFlowStep(2)} className="mt-4 w-full py-5 bg-slate-900 text-white font-bold rounded-2xl text-xl shadow-xl active:scale-95 transition-transform animate-fade-in shrink-0">Avançar com esta foto</button>
-                )}
-
-                <button onClick={() => setFlowStep(2)} className="mt-8 text-slate-400 underline p-2 font-medium shrink-0">Pular (Sem Foto)</button>
+                <div className="p-6 pt-0 bg-gray-50 shrink-0 flex flex-col items-center">
+                    {registro.foto_url_local ? (
+                        <button onClick={() => setFlowStep(2)} className="w-full max-w-xs py-4 bg-slate-900 text-white font-bold rounded-2xl text-lg shadow-xl active:scale-95 transition-transform animate-fade-in">Avançar com esta foto</button>
+                    ) : (
+                        <button onClick={() => setFlowStep(2)} className="text-slate-400 underline font-medium p-4">Pular (Sem Foto)</button>
+                    )}
+                </div>
               </div>
             )}
 
             {flowStep === 2 && (
-              /* AQUI ESTÁ A CORREÇÃO DE ROLAGEM DA LISTA DE PRODUTOS */
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
-                <h3 className="text-xl font-bold text-slate-800 mb-4 shrink-0">O que está na foto?</h3>
-                <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex gap-3 items-center shrink-0">
-                    <div className="text-4xl w-16 h-16 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center shadow-inner">{customProductEmoji}</div>
-                    <div className="flex-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Buscar ou Digitar Produto</label>
-                        <input autoFocus placeholder="Ex: Camarão" value={customProductName} onChange={(e) => {setCustomProductName(e.target.value); setCustomProductEmoji(buscarEmoji(e.target.value));}} className="w-full text-lg font-bold text-slate-800 focus:outline-none placeholder:font-normal"/>
+              <div className="flex-1 flex flex-col animate-slide-up bg-gray-50 min-h-0">
+                <div className="flex-1 p-6 overflow-y-auto hide-scrollbar flex flex-col">
+                    <h3 className="text-xl font-bold text-slate-800 mb-4 shrink-0">O que está na foto?</h3>
+                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex gap-3 items-center shrink-0">
+                        <div className="text-4xl w-16 h-16 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center shadow-inner">{customProductEmoji}</div>
+                        <div className="flex-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Buscar ou Digitar Produto</label>
+                            <input autoFocus placeholder="Ex: Camarão" value={customProductName} onChange={(e) => {setCustomProductName(e.target.value); setCustomProductEmoji(buscarEmoji(e.target.value));}} className="w-full text-lg font-bold text-slate-800 focus:outline-none placeholder:font-normal"/>
+                        </div>
+                    </div>
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 shrink-0">Ou escolha da lista:</div>
+                    <div className="grid grid-cols-2 gap-3 shrink-0 pb-6">
+                    {produtosLista.map(p => (
+                        <button key={p.id} onClick={() => { setCustomProductName(p.nome); setCustomProductEmoji(p.icone); setRegistro({...registro, produto: p.nome, custo_unitario: p.custo || 0, icone: p.icone}); setFlowStep(3); }} className="bg-white border border-gray-200 p-4 rounded-2xl flex items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
+                            <span className="text-3xl mr-3">{p.icone}</span><span className="font-bold text-slate-700 text-sm text-left leading-tight">{p.nome}</span>
+                        </button>
+                    ))}
                     </div>
                 </div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 shrink-0">Ou escolha da lista:</div>
-                <div className="grid grid-cols-2 gap-3 shrink-0 pb-6">
-                  {produtosLista.map(p => (
-                    <button key={p.id} onClick={() => { setCustomProductName(p.nome); setCustomProductEmoji(p.icone); setRegistro({...registro, produto: p.nome, custo_unitario: p.custo || 0, icone: p.icone}); setFlowStep(3); }} className="bg-white border border-gray-200 p-4 rounded-2xl flex items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
-                        <span className="text-3xl mr-3">{p.icone}</span><span className="font-bold text-slate-700 text-sm text-left leading-tight">{p.nome}</span>
-                    </button>
-                  ))}
-                </div>
+                
                 {customProductName && (
-                    <button onClick={() => { setRegistro({...registro, produto: customProductName, custo_unitario: 0, icone: customProductEmoji}); setFlowStep(3); }} className="w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg mt-auto shrink-0">Confirmar: {customProductName}</button>
+                    <div className="p-6 pt-0 bg-gray-50 shrink-0">
+                        <button onClick={() => { setRegistro({...registro, produto: customProductName, custo_unitario: 0, icone: customProductEmoji}); setFlowStep(3); }} className="w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg animate-fade-in">Confirmar: {customProductName}</button>
+                    </div>
                 )}
               </div>
             )}
 
             {flowStep === 3 && (
-              <div className="flex-1 flex flex-col p-6 items-center animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
-                <h3 className="text-lg font-bold text-slate-800 mb-1 shrink-0">Quantidade de</h3>
-                <p className="text-brand font-extrabold text-xl mb-4 text-center shrink-0">{registro.icone} {registro.produto}</p>
-                <div className="flex bg-gray-200 p-1.5 rounded-2xl mb-6 w-full max-w-xs shrink-0">
-                  <button onClick={()=>setRegistro({...registro, unidade: 'un'})} className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'un' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Unid.</button>
-                  <button onClick={()=>setRegistro({...registro, unidade: 'kg'})} className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'kg' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Kg</button>
-                  <button onClick={()=>setRegistro({...registro, unidade: 'L'})}  className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'L' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Litro</button>
+              <div className="flex-1 flex flex-col animate-slide-up bg-gray-50 min-h-0">
+                <div className="flex-1 p-6 flex flex-col items-center overflow-y-auto hide-scrollbar">
+                    <h3 className="text-lg font-bold text-slate-800 mb-1 shrink-0">Quantidade de</h3>
+                    <p className="text-brand font-extrabold text-xl mb-4 text-center shrink-0">{registro.icone} {registro.produto}</p>
+                    <div className="flex bg-gray-200 p-1.5 rounded-2xl mb-6 w-full max-w-xs shrink-0">
+                    <button onClick={()=>setRegistro({...registro, unidade: 'un'})} className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'un' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Unid.</button>
+                    <button onClick={()=>setRegistro({...registro, unidade: 'kg'})} className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'kg' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Kg</button>
+                    <button onClick={()=>setRegistro({...registro, unidade: 'L'})}  className={`flex-1 py-2 font-bold rounded-xl transition-all ${registro.unidade === 'L' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500'}`}>Litro</button>
+                    </div>
+                    <div className="text-5xl font-black text-slate-800 mb-6 h-14 flex items-baseline shrink-0">{registro.qtd || '0'} <span className="text-2xl text-slate-400 ml-2 font-bold">{registro.unidade}</span></div>
+                    
+                    <div className="grid grid-cols-3 gap-2 w-full max-w-xs shrink-0 pb-6">
+                    {[1,2,3,4,5,6,7,8,9].map(n => <button key={n} onClick={() => setRegistro({...registro, qtd: registro.qtd + n})} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">{n}</button>)}
+                    <button onClick={() => { if (!registro.qtd.includes(',')) setRegistro({...registro, qtd: registro.qtd + ','}); }} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">,</button>
+                    <button onClick={() => setRegistro({...registro, qtd: registro.qtd + '0'})} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">0</button>
+                    <button onClick={() => setRegistro({...registro, qtd: registro.qtd.slice(0,-1)})} className="bg-red-50 border border-red-100 text-red-500 py-3 rounded-2xl flex justify-center items-center shadow-sm active:bg-red-100"><IconDelete/></button>
+                    </div>
                 </div>
-                <div className="text-5xl font-black text-slate-800 mb-6 h-14 flex items-baseline shrink-0">{registro.qtd || '0'} <span className="text-2xl text-slate-400 ml-2 font-bold">{registro.unidade}</span></div>
                 
-                <div className="grid grid-cols-3 gap-2 w-full max-w-xs mb-6 shrink-0">
-                  {[1,2,3,4,5,6,7,8,9].map(n => <button key={n} onClick={() => setRegistro({...registro, qtd: registro.qtd + n})} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">{n}</button>)}
-                  <button onClick={() => { if (!registro.qtd.includes(',')) setRegistro({...registro, qtd: registro.qtd + ','}); }} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">,</button>
-                  <button onClick={() => setRegistro({...registro, qtd: registro.qtd + '0'})} className="bg-white border border-gray-200 text-2xl font-bold py-3 rounded-2xl active:bg-gray-100 shadow-sm">0</button>
-                  <button onClick={() => setRegistro({...registro, qtd: registro.qtd.slice(0,-1)})} className="bg-red-50 border border-red-100 text-red-500 py-3 rounded-2xl flex justify-center items-center shadow-sm active:bg-red-100"><IconDelete/></button>
+                <div className="p-6 pt-0 bg-gray-50 shrink-0 w-full flex justify-center">
+                    <button onClick={()=>setFlowStep(4)} disabled={!registro.qtd} className={`w-full max-w-xs py-4 rounded-2xl font-bold text-white text-lg transition-all ${registro.qtd ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>AVANÇAR</button>
                 </div>
-                
-                <button onClick={()=>setFlowStep(4)} disabled={!registro.qtd} className={`mt-auto shrink-0 w-full max-w-xs py-4 rounded-2xl font-bold text-white text-lg transition-all ${registro.qtd ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>AVANÇAR</button>
               </div>
             )}
 
             {flowStep === 4 && !isCustomMotivo && (
-              /* AQUI TAMBÉM ROLAGEM PROTEGIDA PARA LISTA DE MOTIVOS */
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
-                <h3 className="text-xl font-bold text-slate-800 mb-1 shrink-0">Por que foi perdido?</h3>
-                <p className="text-slate-500 text-sm mb-6 shrink-0">Selecione o motivo.</p>
-                <div className="grid grid-cols-2 gap-3 shrink-0 pb-6">
-                  {motivosLista.map(m => (
-                    <button key={m.id} onClick={() => { m.nome === 'Outro' ? setIsCustomMotivo(true) : proceedToStep5(m.nome); }} className="bg-white border border-gray-200 p-5 rounded-3xl flex flex-col items-center shadow-sm active:scale-95 transition-transform"><div className={`w-14 h-14 rounded-full flex items-center justify-center text-3xl mb-3 shadow-inner ${m.cor}`}>{m.icone}</div><span className="font-bold text-slate-700 text-sm text-center">{m.nome}</span></button>
-                  ))}
-                </div>
+              <div className="flex-1 flex flex-col animate-slide-up bg-gray-50 min-h-0">
+                  <div className="flex-1 p-6 overflow-y-auto hide-scrollbar flex flex-col">
+                    <h3 className="text-xl font-bold text-slate-800 mb-1 shrink-0">Por que foi perdido?</h3>
+                    <p className="text-slate-500 text-sm mb-6 shrink-0">Selecione o motivo.</p>
+                    <div className="grid grid-cols-2 gap-3 shrink-0 pb-6">
+                    {motivosLista.map(m => (
+                        <button key={m.id} onClick={() => { m.nome === 'Outro' ? setIsCustomMotivo(true) : proceedToStep5(m.nome); }} className="bg-white border border-gray-200 p-5 rounded-3xl flex flex-col items-center shadow-sm active:scale-95 transition-transform"><div className={`w-14 h-14 rounded-full flex items-center justify-center text-3xl mb-3 shadow-inner ${m.cor}`}>{m.icone}</div><span className="font-bold text-slate-700 text-sm text-center">{m.nome}</span></button>
+                    ))}
+                    </div>
+                  </div>
               </div>
             )}
 
             {flowStep === 4 && isCustomMotivo && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
-                <h3 className="text-xl font-bold text-slate-800 mb-2 shrink-0">Descrever Motivo</h3>
-                <textarea autoFocus placeholder="Ex: A geladeira desligou..." value={customMotivoName} onChange={(e) => setCustomMotivoName(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32 shrink-0"></textarea>
-                <button onClick={() => proceedToStep5('Outro')} disabled={customMotivoName.trim() === ''} className={`mt-auto shrink-0 w-full py-4 rounded-2xl font-bold text-white text-lg transition-all ${customMotivoName.trim() !== '' ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>Avançar</button>
+              <div className="flex-1 flex flex-col animate-slide-up bg-gray-50 min-h-0">
+                  <div className="flex-1 p-6 overflow-y-auto hide-scrollbar flex flex-col">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2 shrink-0">Descrever Motivo</h3>
+                    <textarea autoFocus placeholder="Ex: A geladeira desligou..." value={customMotivoName} onChange={(e) => setCustomMotivoName(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32 shrink-0"></textarea>
+                  </div>
+                  <div className="p-6 pt-0 bg-gray-50 shrink-0 w-full">
+                    <button onClick={() => proceedToStep5('Outro')} disabled={customMotivoName.trim() === ''} className={`w-full py-4 rounded-2xl font-bold text-white text-lg transition-all ${customMotivoName.trim() !== '' ? 'bg-brand shadow-lg' : 'bg-gray-300'}`}>Avançar</button>
+                  </div>
               </div>
             )}
 
             {/* PASSO 5 - RESPONSABILIDADE */}
             {flowStep === 5 && !showColegasList && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 items-center justify-center text-center overflow-y-auto hide-scrollbar">
-                <h3 className="text-3xl font-black text-slate-800 mb-2 shrink-0">Você sabe quem foi?</h3>
-                <p className="text-slate-500 font-medium mb-8 shrink-0">Fique tranquilo(a)! Se você apontar um colega, essa informação é confidencial e só a gerência verá.</p>
-                
-                <div className="w-full max-w-xs space-y-4 shrink-0">
-                    <button onClick={() => finishFlow(user.nome)} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-slate-700 text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
-                        🙋‍♂️ Fui eu mesmo
-                    </button>
-                    <button onClick={() => finishFlow('Não identificado')} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-slate-700 text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
-                        🤷‍♂️ Não sei / Achei assim
-                    </button>
-                    <button onClick={() => setShowColegasList(true)} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-brand text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
-                        Foi outra pessoa...
-                    </button>
-                </div>
+              <div className="flex-1 flex flex-col animate-slide-up bg-gray-50 min-h-0">
+                  <div className="flex-1 p-6 overflow-y-auto hide-scrollbar flex flex-col items-center justify-center text-center">
+                    <h3 className="text-3xl font-black text-slate-800 mb-2 shrink-0">Você sabe quem foi?</h3>
+                    <p className="text-slate-500 font-medium mb-8 shrink-0">Fique tranquilo(a)! Se você apontar um colega, essa informação é confidencial e só a gerência verá.</p>
+                    
+                    <div className="w-full max-w-xs space-y-4 shrink-0 pb-6">
+                        <button onClick={() => finishFlow(user.nome)} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-slate-700 text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
+                            🙋‍♂️ Fui eu mesmo
+                        </button>
+                        <button onClick={() => finishFlow('Não identificado')} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-slate-700 text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
+                            🤷‍♂️ Não sei / Achei assim
+                        </button>
+                        <button onClick={() => setShowColegasList(true)} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-brand text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
+                            Foi outra pessoa...
+                        </button>
+                    </div>
+                  </div>
               </div>
             )}
 
             {flowStep === 5 && showColegasList && !selectedColega && (
-              /* AQUI TAMBÉM ROLAGEM PROTEGIDA PARA LISTA DE FUNCIONÁRIOS */
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
-                <h3 className="text-xl font-bold text-slate-800 mb-2 shrink-0">Selecione o Colega:</h3>
-                <p className="text-slate-500 text-sm mb-6 shrink-0">Esta informação é confidencial.</p>
+              <div className="flex-1 flex flex-col animate-slide-up bg-gray-50 min-h-0">
+                  <div className="flex-1 p-6 overflow-y-auto hide-scrollbar flex flex-col">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2 shrink-0">Selecione o Colega:</h3>
+                    <p className="text-slate-500 text-sm mb-6 shrink-0">Esta informação é confidencial.</p>
 
-                <div className="grid grid-cols-2 gap-4 shrink-0 pb-6">
-                  {equipe.filter(e => e.loja_id === currentLoja?.id).map(c => (
-                    <button key={c.id} onClick={() => setSelectedColega(c.nome)} className="bg-white border border-gray-200 p-4 rounded-2xl flex flex-col items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
-                        <span className="text-4xl mb-2">{c.avatar || '👤'}</span>
-                        <span className="font-bold text-slate-700 text-sm text-center">{c.nome.split(' ')[0]}</span>
-                    </button>
-                  ))}
-                </div>
+                    <div className="grid grid-cols-2 gap-4 shrink-0 pb-6">
+                    {equipe.filter(e => e.loja_id === currentLoja?.id).map(c => (
+                        <button key={c.id} onClick={() => setSelectedColega(c.nome)} className="bg-white border border-gray-200 p-4 rounded-2xl flex flex-col items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
+                            <span className="text-4xl mb-2">{c.avatar || '👤'}</span>
+                            <span className="font-bold text-slate-700 text-sm text-center">{c.nome.split(' ')[0]}</span>
+                        </button>
+                    ))}
+                    </div>
+                  </div>
               </div>
             )}
 
             {flowStep === 5 && selectedColega && (
-              <div className="flex-1 flex flex-col p-6 animate-slide-up bg-gray-50 overflow-y-auto hide-scrollbar">
-                <h3 className="text-xl font-bold text-slate-800 mb-2 shrink-0">Responsável: {selectedColega.split(' ')[0]}</h3>
-                <p className="text-slate-500 text-sm mb-6 shrink-0">Quer adicionar alguma observação? (Opcional)</p>
-                
-                <textarea autoFocus placeholder="Ex: Deixou a porta do freezer aberta..." value={observacaoColega} onChange={(e) => setObservacaoColega(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32 shrink-0"></textarea>
-                
-                <button onClick={() => finishFlow(selectedColega)} className="mt-auto shrink-0 w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg">Finalizar Registro</button>
+              <div className="flex-1 flex flex-col animate-slide-up bg-gray-50 min-h-0">
+                  <div className="flex-1 p-6 overflow-y-auto hide-scrollbar flex flex-col">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2 shrink-0">Responsável: {selectedColega.split(' ')[0]}</h3>
+                    <p className="text-slate-500 text-sm mb-6 shrink-0">Quer adicionar alguma observação? (Opcional)</p>
+                    
+                    <textarea autoFocus placeholder="Ex: Deixou a porta do freezer aberta..." value={observacaoColega} onChange={(e) => setObservacaoColega(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32 shrink-0"></textarea>
+                  </div>
+                  <div className="p-6 pt-0 bg-gray-50 shrink-0 w-full">
+                    <button onClick={() => finishFlow(selectedColega)} className="w-full py-4 rounded-2xl font-bold text-white text-lg transition-all bg-brand shadow-lg">Finalizar Registro</button>
+                  </div>
               </div>
             )}
           </div>
@@ -797,7 +838,10 @@
                                     
                                     <div className="mt-3 bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
                                         <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Responsável: <span className={`text-sm ${isAnonimo ? "text-orange-500" : "text-slate-800"}`}>{item.responsavel}</span></p>
-                                        <p className="text-xs text-slate-600 mb-2 font-medium">Registrado por {item.relator} • {item.hora} • {lojaDoRegistro}</p>
+                                        
+                                        {/* AQUI ESTÁ A MUDANÇA: USANDO A NOVA FUNÇÃO DE DATA */}
+                                        <p className="text-xs text-slate-600 mb-2 font-medium">Registrado por {item.relator} • {formatarDataHora(item.timestamp)} • {lojaDoRegistro}</p>
+                                        
                                         {item.observacao && (
                                             <div className="bg-yellow-50 border border-yellow-200 p-2.5 rounded mt-2 mr-8">
                                                 <p className="text-sm text-yellow-800 italic font-medium">"{item.observacao}"</p>
@@ -1153,10 +1197,19 @@
       // TELA GERENTE: AJUSTES (Logo & Nome)
       // ==========================================
       if (view === 'manager_settings') {
-        const handleSaveSettings = () => { 
-            localStorage.setItem('lojaNome', lojaNome);
-            if(lojaLogo) localStorage.setItem('lojaLogo', lojaLogo);
-            alert('✅ Configurações salvas permanentemente no aparelho!'); 
+        const handleSaveSettings = async () => { 
+            if (supabase) {
+                const objSalvar = { id: 1, nome_rede: lojaNome, logo_rede: lojaLogo };
+                const { error } = await supabase.from('configuracoes').upsert(objSalvar);
+                if (error) {
+                    alert('ERRO AO SALVAR NA NUVEM: ' + error.message);
+                    return;
+                }
+            } else {
+                localStorage.setItem('lojaNome', lojaNome);
+                if(lojaLogo) localStorage.setItem('lojaLogo', lojaLogo);
+            }
+            alert('✅ Configurações salvas para todos os aparelhos da rede!'); 
             setView('dashboard'); 
         };
 
