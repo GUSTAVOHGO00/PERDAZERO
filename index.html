@@ -58,9 +58,9 @@
     catch (e) { console.error("Erro Supabase:", e); }
 
     function App() {
-      // --- CONFIGURAÇÕES DA REDE ---
-      const [lojaNome, setLojaNome] = useState("Carregando...");
-      const [lojaLogo, setLojaLogo] = useState(null); 
+      // --- CONFIGURAÇÕES DA REDE COM MEMÓRIA DUPLA (Cache First) ---
+      const [lojaNome, setLojaNome] = useState(() => localStorage.getItem('pz_lojaNome') || "Roy's Store");
+      const [lojaLogo, setLojaLogo] = useState(() => localStorage.getItem('pz_lojaLogo') || null); 
 
       // --- ESTADOS GLOBAIS COM PERSISTÊNCIA BÁSICA DE SESSÃO ---
       const [user, setUser] = useState(() => {
@@ -83,9 +83,9 @@
 
       const [flowStep, setFlowStep] = useState(1); 
       
-      // NOVOS ESTADOS PARA FILTROS
+      // ESTADOS PARA FILTROS
       const [filtroTempo, setFiltroTempo] = useState('hoje'); 
-      const [filtroMesEspecifico, setFiltroMesEspecifico] = useState(''); // Armazena o mês exato selecionado (ex: '2026-04')
+      const [filtroMesEspecifico, setFiltroMesEspecifico] = useState(''); 
       
       // --- BANCO DE DADOS ---
       const [lojas, setLojas] = useState([]);
@@ -99,16 +99,26 @@
       useEffect(() => {
         async function fetchDados() {
             if (!supabase) return;
+            
+            // 1. Busca a Identidade Visual de forma isolada e segura
             try {
-                // Busca a Identidade Visual Global
-                const { data: dbConfig } = await supabase.from('configuracoes').select('*').eq('id', 1).single();
+                const { data: dbConfig } = await supabase.from('configuracoes').select('*').eq('id', 1).maybeSingle();
                 if (dbConfig) {
-                    setLojaNome(dbConfig.nome_rede || "Roy's Store");
-                    setLojaLogo(dbConfig.logo_rede || null);
-                } else {
-                    setLojaNome("Roy's Store"); // Fallback se a tabela estiver vazia
+                    if (dbConfig.nome_rede) {
+                        setLojaNome(dbConfig.nome_rede);
+                        localStorage.setItem('pz_lojaNome', dbConfig.nome_rede);
+                    }
+                    if (dbConfig.logo_rede) {
+                        setLojaLogo(dbConfig.logo_rede);
+                        localStorage.setItem('pz_lojaLogo', dbConfig.logo_rede);
+                    }
                 }
+            } catch (err) {
+                console.error("Erro ao puxar identidade visual:", err);
+            }
 
+            // 2. Busca os dados operacionais
+            try {
                 const { data: dbLojas } = await supabase.from('lojas').select('*').order('id', { ascending: true });
                 if (dbLojas) setLojas(dbLojas);
 
@@ -121,8 +131,7 @@
                 const { data: dbHist } = await supabase.from('historico').select('*').order('timestamp', { ascending: false });
                 if (dbHist) setHistorico(dbHist);
             } catch (err) {
-                console.error("Erro crítico ao puxar dados:", err);
-                setLojaNome("Roy's Store"); // Fallback em caso de erro
+                console.error("Erro crítico ao puxar dados operacionais:", err);
             }
         }
         fetchDados();
@@ -213,7 +222,6 @@
       const IconStore = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 7 4.41-2.205a2 2 0 0 1 2 0L12 7l3.59-1.795a2 2 0 0 1 2 0L22 7v14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7Z"></path><path d="M12 22V7"></path><path d="M2 13h20"></path><path d="M2 17h20"></path></svg>;
       const IconSettings = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
       
-      // Função para formatar a data relativa inteligente
       const formatarDataHora = (timestamp) => {
           if (!timestamp) return '';
           const data = new Date(timestamp);
@@ -234,24 +242,18 @@
 
       const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
 
-      // ==========================================
-      // NOVA MATEMÁTICA DOS FILTROS
-      // ==========================================
       const getDadosFiltrados = () => {
           return historico.filter(item => {
-              // Filtro por Loja
               const isGlobal = dashboardLojaFiltro === 'todas';
               if (!isGlobal && item.loja_id !== parseInt(dashboardLojaFiltro)) return false;
 
               const dataItem = new Date(item.timestamp);
               
-              // Filtro por Mês Específico (Se o Dropdown de Mês estiver em uso)
               if (filtroMesEspecifico) {
                   const mesAnoItem = `${dataItem.getFullYear()}-${String(dataItem.getMonth() + 1).padStart(2, '0')}`;
                   return mesAnoItem === filtroMesEspecifico;
               }
 
-              // Filtro de atalhos rápidos (Hoje, Semana, Mês Atual)
               const hoje = new Date();
               const dataItemZorada = new Date(dataItem.getFullYear(), dataItem.getMonth(), dataItem.getDate()).getTime();
               const hojeZorada = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime();
@@ -267,13 +269,10 @@
 
       const dadosDashboard = getDadosFiltrados();
 
-      // ==========================================
-      // GERADOR DA LISTA DE MESES DISPONÍVEIS
-      // ==========================================
       const mesesDisponiveis = [...new Set(historico.map(item => {
           const d = new Date(item.timestamp);
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      }))].sort().reverse(); // Organiza do mais recente para o mais antigo
+      }))].sort().reverse(); 
 
       const nomeMesFormatado = (mesAno) => {
           const [ano, mes] = mesAno.split('-');
@@ -317,7 +316,6 @@
         }
       }, [view, dadosDashboard]);
 
-      // Navegação
       const handleSelectUser = (selectedUser) => {
           if (selectedUser.funcao === 'operacional') {
               setUser(selectedUser);
@@ -394,9 +392,6 @@
           </div>
       );
 
-      // ==========================================
-      // TELA 1: SELECIONAR LOJA
-      // ==========================================
       if (view === 'select_loja') {
           return (
               <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center animate-fade-in pt-safe-nav min-h-0">
@@ -421,9 +416,6 @@
           );
       }
 
-      // ==========================================
-      // TELA 2: QUEM É VOCÊ?
-      // ==========================================
       if (view === 'select_user') {
           const equipeDaLoja = equipe.filter(e => e.loja_id === currentLoja?.id || e.funcao === 'admin');
           return (
@@ -439,7 +431,7 @@
                           {equipeDaLoja.map(membro => (
                               <button key={membro.id} onClick={() => handleSelectUser(membro)} className="bg-white border border-gray-200 p-6 rounded-3xl flex flex-col items-center shadow-sm hover:border-brand hover:shadow-md active:scale-95 transition-all">
                                   <div className="text-5xl mb-3 bg-gray-50 p-4 rounded-full shadow-inner">{membro.avatar || '👤'}</div>
-                                  <span className="font-bold text-slate-800 text-lg text-center leading-tight">{membro.nome.split(' ')[0]}</span>
+                                  <span className="font-bold text-slate-800 text-lg text-center leading-tight">{(membro.nome || '').split(' ')[0]}</span>
                                   {membro.funcao !== 'operacional' && <span className="mt-2 text-[9px] bg-slate-800 text-white px-2 py-0.5 rounded-full uppercase flex items-center tracking-wider"><IconLock/> Senha</span>}
                               </button>
                           ))}
@@ -450,16 +442,13 @@
           );
       }
 
-      // ==========================================
-      // MODAL DE PIN (Para Gerentes/Admins)
-      // ==========================================
       if (view === 'pin_modal') {
           return (
               <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center items-center animate-fade-in">
                   <div className="bg-white w-full max-w-sm rounded-[40px] p-8 flex flex-col items-center shadow-2xl relative">
                       <button onClick={() => setView('select_user')} className="absolute top-6 left-6 text-slate-400"><IconBack/></button>
-                      <div className="text-6xl mb-4 mt-2">{userPendingPin.avatar || '👤'}</div>
-                      <h2 className="text-2xl font-bold text-slate-800 mb-1">Olá, {userPendingPin.nome.split(' ')[0]}</h2>
+                      <div className="text-6xl mb-4 mt-2">{userPendingPin?.avatar || '👤'}</div>
+                      <h2 className="text-2xl font-bold text-slate-800 mb-1">Olá, {(userPendingPin?.nome || '').split(' ')[0]}</h2>
                       <p className="text-slate-500 text-sm mb-6 font-medium">Digite seu PIN de acesso</p>
                       
                       <div className="flex space-x-3 mb-6">
@@ -481,15 +470,12 @@
           )
       }
 
-      // ==========================================
-      // TELA 3: HOME DO FUNCIONÁRIO (Modo Cozinha)
-      // ==========================================
       if (view === 'home_func') {
         return (
           <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up pb-safe-nav pt-safe-nav">
             <div className="bg-brand p-6 pt-10 pb-10 rounded-b-[40px] shadow-lg flex justify-between items-center text-white relative overflow-hidden">
                <div className="absolute top-[-20px] right-[-20px] opacity-20 text-brand pointer-events-none"><RenderLogo size={160} /></div>
-               <div className="z-10"><p className="text-green-100 text-sm font-medium">Bom trabalho,</p><h2 className="text-3xl font-bold tracking-tight">{user.nome.split(' ')[0]}</h2></div>
+               <div className="z-10"><p className="text-green-100 text-sm font-medium">Bom trabalho,</p><h2 className="text-3xl font-bold tracking-tight">{(user?.nome || '').split(' ')[0]}</h2></div>
                <button onClick={handleLogout} className="p-3 bg-white/20 rounded-full z-10 active:bg-white/30 transition-colors"><IconLogout/></button>
             </div>
             <div className="flex-1 flex flex-col items-center justify-center p-6">
@@ -502,9 +488,6 @@
         );
       }
 
-      // ==========================================
-      // TELA 4: FLUXO DE REGISTRO (5 PASSOS)
-      // ==========================================
       if (view === 'flow') {
         
         const proceedToStep5 = (motivoSelecionado) => {
@@ -541,7 +524,7 @@
             const idLojaOperacao = currentLoja?.id || user?.loja_id || 0;
 
             const objSalvar = {
-                loja_id: idLojaOperacao, relator: user.nome, responsavel: nomeResponsavel,
+                loja_id: idLojaOperacao, relator: user?.nome, responsavel: nomeResponsavel,
                 prod: registro.produto, qtd: qtdNum, uni: registro.unidade,
                 motivo: registro.motivo, observacao: observacaoColega, hora: horaString,
                 img: registro.icone, custo_total: custoTotal, foto_url: finalPhotoUrl, timestamp: Date.now()
@@ -561,7 +544,7 @@
             setIsUploading(false);
             alert('✅ Sucesso! Desperdício registrado.');
             resetFlowState();
-            setView(user.funcao === 'operacional' ? 'home_func' : 'dashboard');
+            setView(user?.funcao === 'operacional' ? 'home_func' : 'dashboard');
         };
 
         if (isUploading) {
@@ -580,7 +563,7 @@
                   if(flowStep === 5 && selectedColega) { setSelectedColega(null); setObservacaoColega(''); return; }
                   if(flowStep === 5 && showColegasList) { setShowColegasList(false); return; }
                   if(flowStep === 4 && isCustomMotivo) { setIsCustomMotivo(false); setCustomMotivoName(''); return; }
-                  if(flowStep > 1) setFlowStep(flowStep - 1); else setView(user.funcao === 'operacional' ? 'home_func' : 'dashboard'); 
+                  if(flowStep > 1) setFlowStep(flowStep - 1); else setView(user?.funcao === 'operacional' ? 'home_func' : 'dashboard'); 
               }} className="p-2 text-slate-500"><IconBack/></button>
               <div className="flex-1 text-center font-bold text-slate-400 text-sm tracking-widest">PASSO {flowStep} DE 5</div><div className="w-10"></div>
             </div>
@@ -712,7 +695,7 @@
                     <p className="text-slate-500 font-medium mb-8 shrink-0">Fique tranquilo(a)! Se você apontar um colega, essa informação é confidencial e só a gerência verá.</p>
                     
                     <div className="w-full max-w-xs space-y-4 shrink-0 pb-6">
-                        <button onClick={() => finishFlow(user.nome)} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-slate-700 text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
+                        <button onClick={() => finishFlow(user?.nome)} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-slate-700 text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
                             🙋‍♂️ Fui eu mesmo
                         </button>
                         <button onClick={() => finishFlow('Não identificado')} className="w-full py-5 bg-white border border-gray-200 rounded-2xl font-bold text-slate-700 text-lg shadow-sm active:bg-gray-100 flex items-center justify-center">
@@ -736,7 +719,7 @@
                     {equipe.filter(e => e.loja_id === currentLoja?.id).map(c => (
                         <button key={c.id} onClick={() => setSelectedColega(c.nome)} className="bg-white border border-gray-200 p-4 rounded-2xl flex flex-col items-center shadow-sm active:border-brand active:bg-green-50 transition-colors">
                             <span className="text-4xl mb-2">{c.avatar || '👤'}</span>
-                            <span className="font-bold text-slate-700 text-sm text-center">{c.nome.split(' ')[0]}</span>
+                            <span className="font-bold text-slate-700 text-sm text-center">{(c.nome || '').split(' ')[0]}</span>
                         </button>
                     ))}
                     </div>
@@ -747,7 +730,7 @@
             {flowStep === 5 && selectedColega && (
               <div className="flex-1 flex flex-col animate-slide-up bg-gray-50 min-h-0">
                   <div className="flex-1 p-6 overflow-y-auto hide-scrollbar flex flex-col">
-                    <h3 className="text-xl font-bold text-slate-800 mb-2 shrink-0">Responsável: {selectedColega.split(' ')[0]}</h3>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2 shrink-0">Responsável: {(selectedColega || '').split(' ')[0]}</h3>
                     <p className="text-slate-500 text-sm mb-6 shrink-0">Quer adicionar alguma observação? (Opcional)</p>
                     
                     <textarea autoFocus placeholder="Ex: Deixou a porta do freezer aberta..." value={observacaoColega} onChange={(e) => setObservacaoColega(e.target.value)} className="w-full p-4 border border-gray-200 rounded-2xl text-base font-medium text-slate-800 focus:border-brand focus:outline-none mb-8 resize-none h-32 shrink-0"></textarea>
@@ -761,9 +744,6 @@
         );
       }
 
-      // ==========================================
-      // TELA GERENTE: DASHBOARD COMPLETO
-      // ==========================================
       if (view === 'dashboard') {
         const totalPrejuizo = dadosDashboard.reduce((acc, curr) => acc + (curr.custo_total || 0), 0);
 
@@ -794,11 +774,11 @@
             <PhotoModal />
             <div className="bg-slate-900 text-white p-6 pt-6 flex flex-col shadow-md z-10 flex-shrink-0">
                <div className="flex justify-between items-center mb-4">
-                 <div><p className="text-brand text-[10px] font-bold tracking-widest mb-1 uppercase">Painel {user.funcao}</p><h2 className="text-xl font-bold">{lojaNome}</h2></div>
+                 <div><p className="text-brand text-[10px] font-bold tracking-widest mb-1 uppercase">Painel {user?.funcao}</p><h2 className="text-xl font-bold">{lojaNome}</h2></div>
                  <button onClick={handleLogout} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700"><IconLogout/></button>
                </div>
                
-               {user.funcao === 'admin' && (
+               {user?.funcao === 'admin' && (
                   <div className="mb-3">
                       <select value={dashboardLojaFiltro} onChange={(e) => setDashboardLojaFiltro(e.target.value)} className="w-full bg-slate-800 text-white p-2.5 rounded-xl text-sm font-bold border border-slate-700 outline-none">
                           <option value="todas">🌐 Visão Global (Todas as Lojas)</option>
@@ -813,14 +793,13 @@
                   <button onClick={() => { setFiltroTempo('mes'); setFiltroMesEspecifico(''); }} className={`flex-1 py-1.5 font-bold rounded-lg text-xs transition-colors ${filtroTempo === 'mes' ? 'bg-slate-700 shadow-sm text-white' : 'text-slate-400'}`}>Mês</button>
                </div>
 
-               {/* AQUI ESTÁ O NOVO FILTRO DE HISTÓRICO DE MESES */}
                <div className="w-full">
                   <select 
                       value={filtroMesEspecifico} 
                       onChange={(e) => {
                           setFiltroMesEspecifico(e.target.value);
-                          if(e.target.value) setFiltroTempo(''); // Se escolheu um mês, desativa Hoje/Semana/Mês
-                          else setFiltroTempo('hoje'); // Se limpou, volta pro padrão
+                          if(e.target.value) setFiltroTempo(''); 
+                          else setFiltroTempo('hoje'); 
                       }} 
                       className="w-full bg-slate-800 text-slate-300 p-2.5 rounded-xl text-sm font-bold border border-slate-700 outline-none"
                   >
@@ -844,7 +823,7 @@
                         <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Top 3: Causadores</h3>
                         <div className="space-y-2">
                         {topFuncionarios.length === 0 ? <p className="text-xs text-slate-400">Sem dados no período</p> : topFuncionarios.map((f, i) => (
-                            <div key={i} className="flex justify-between items-center"><span className="text-xs font-bold text-slate-800 truncate pr-2">#{i+1} {f[0].split(' ')[0]}</span><span className="text-[10px] text-red-500 font-bold">{formatarMoeda(f[1])}</span></div>
+                            <div key={i} className="flex justify-between items-center"><span className="text-xs font-bold text-slate-800 truncate pr-2">#{i+1} {(f[0] || '').split(' ')[0]}</span><span className="text-[10px] text-red-500 font-bold">{formatarMoeda(f[1])}</span></div>
                         ))}
                         </div>
                     </div>
@@ -898,7 +877,7 @@
                                         
                                         {item.observacao && (
                                             <div className="bg-yellow-50 border border-yellow-200 p-2.5 rounded mt-2 mr-8">
-                                                <p className="text-sm text-yellow-800 italic font-medium">"{item.observacao}"</p>
+                                                <p className="text-sm text-yellow-800 italic font-medium break-words whitespace-normal max-w-full">"{item.observacao}"</p>
                                             </div>
                                         )}
                                         
@@ -918,9 +897,6 @@
         );
       }
 
-      // ==========================================
-      // TELA GERENTE: UNIDADES (LOJAS)
-      // ==========================================
       if (view === 'manager_lojas') {
         const handleAddLoja = async () => {
           if(!novaLojaNome.trim()) return;
@@ -997,9 +973,6 @@
         );
       }
 
-      // ==========================================
-      // TELA GERENTE: PRODUTOS
-      // ==========================================
       if (view === 'manager_produtos') {
         const handleAddProduct = async () => {
           if(novoProdNome.trim() === '') return;
@@ -1090,9 +1063,6 @@
         );
       }
 
-      // ==========================================
-      // TELA GERENTE: EQUIPE
-      // ==========================================
       if (view === 'manager_equipe') {
         
         const canAddMembro = novoMembroNome.trim() !== '' && (novoMembroFuncao === 'operacional' || novoMembroCodigo.length === 4);
@@ -1247,21 +1217,20 @@
         );
       }
 
-      // ==========================================
-      // TELA GERENTE: AJUSTES (Logo & Nome)
-      // ==========================================
       if (view === 'manager_settings') {
         const handleSaveSettings = async () => { 
+            // 1. Salva na Memória do Celular IMEDIATAMENTE (Cache-First)
+            localStorage.setItem('pz_lojaNome', lojaNome);
+            if (lojaLogo) localStorage.setItem('pz_lojaLogo', lojaLogo);
+
+            // 2. Salva na Nuvem (Supabase)
             if (supabase) {
                 const objSalvar = { id: 1, nome_rede: lojaNome, logo_rede: lojaLogo };
                 const { error } = await supabase.from('configuracoes').upsert(objSalvar);
                 if (error) {
                     alert('ERRO AO SALVAR NA NUVEM: ' + error.message);
-                    return;
+                    return; 
                 }
-            } else {
-                localStorage.setItem('lojaNome', lojaNome);
-                if(lojaLogo) localStorage.setItem('lojaLogo', lojaLogo);
             }
             alert('✅ Configurações salvas para todos os aparelhos da rede!'); 
             setView('dashboard'); 
