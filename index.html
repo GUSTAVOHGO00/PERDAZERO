@@ -58,9 +58,9 @@
     catch (e) { console.error("Erro Supabase:", e); }
 
     function App() {
-      // --- CONFIGURAÇÕES DA REDE COM MEMÓRIA DUPLA (Cache First) ---
-      const [lojaNome, setLojaNome] = useState(() => localStorage.getItem('pz_lojaNome') || "Roy's");
-      const [lojaLogo, setLojaLogo] = useState(() => localStorage.getItem('pz_lojaLogo') || null); 
+      // --- CONFIGURAÇÕES DA REDE ---
+      const [lojaNome, setLojaNome] = useState("Carregando...");
+      const [lojaLogo, setLojaLogo] = useState(null); 
 
       // --- ESTADOS GLOBAIS COM PERSISTÊNCIA BÁSICA DE SESSÃO ---
       const [user, setUser] = useState(() => {
@@ -83,8 +83,9 @@
 
       const [flowStep, setFlowStep] = useState(1); 
       
+      // NOVOS ESTADOS PARA FILTROS
       const [filtroTempo, setFiltroTempo] = useState('hoje'); 
-      const [filtroMesEspecifico, setFiltroMesEspecifico] = useState(''); 
+      const [filtroMesEspecifico, setFiltroMesEspecifico] = useState(''); // Armazena o mês exato selecionado (ex: '2026-04')
       
       // --- BANCO DE DADOS ---
       const [lojas, setLojas] = useState([]);
@@ -98,26 +99,16 @@
       useEffect(() => {
         async function fetchDados() {
             if (!supabase) return;
-            
-            // 1. Busca a Identidade Visual de forma isolada
             try {
-                const { data: dbConfig } = await supabase.from('configuracoes').select('*').eq('id', 1).maybeSingle();
+                // Busca a Identidade Visual Global
+                const { data: dbConfig } = await supabase.from('configuracoes').select('*').eq('id', 1).single();
                 if (dbConfig) {
-                    if (dbConfig.nome_rede) {
-                        setLojaNome(dbConfig.nome_rede);
-                        localStorage.setItem('pz_lojaNome', dbConfig.nome_rede);
-                    }
-                    if (dbConfig.logo_rede) {
-                        setLojaLogo(dbConfig.logo_rede);
-                        localStorage.setItem('pz_lojaLogo', dbConfig.logo_rede);
-                    }
+                    setLojaNome(dbConfig.nome_rede || "Roy's Store");
+                    setLojaLogo(dbConfig.logo_rede || null);
+                } else {
+                    setLojaNome("Roy's Store"); // Fallback se a tabela estiver vazia
                 }
-            } catch (err) {
-                console.error("Erro ao puxar identidade visual:", err);
-            }
 
-            // 2. Busca os dados operacionais
-            try {
                 const { data: dbLojas } = await supabase.from('lojas').select('*').order('id', { ascending: true });
                 if (dbLojas) setLojas(dbLojas);
 
@@ -130,7 +121,8 @@
                 const { data: dbHist } = await supabase.from('historico').select('*').order('timestamp', { ascending: false });
                 if (dbHist) setHistorico(dbHist);
             } catch (err) {
-                console.error("Erro crítico ao puxar dados operacionais:", err);
+                console.error("Erro crítico ao puxar dados:", err);
+                setLojaNome("Roy's Store"); // Fallback em caso de erro
             }
         }
         fetchDados();
@@ -221,6 +213,7 @@
       const IconStore = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 7 4.41-2.205a2 2 0 0 1 2 0L12 7l3.59-1.795a2 2 0 0 1 2 0L22 7v14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7Z"></path><path d="M12 22V7"></path><path d="M2 13h20"></path><path d="M2 17h20"></path></svg>;
       const IconSettings = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
       
+      // Função para formatar a data relativa inteligente
       const formatarDataHora = (timestamp) => {
           if (!timestamp) return '';
           const data = new Date(timestamp);
@@ -241,18 +234,24 @@
 
       const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
 
+      // ==========================================
+      // NOVA MATEMÁTICA DOS FILTROS
+      // ==========================================
       const getDadosFiltrados = () => {
           return historico.filter(item => {
+              // Filtro por Loja
               const isGlobal = dashboardLojaFiltro === 'todas';
               if (!isGlobal && item.loja_id !== parseInt(dashboardLojaFiltro)) return false;
 
               const dataItem = new Date(item.timestamp);
               
+              // Filtro por Mês Específico (Se o Dropdown de Mês estiver em uso)
               if (filtroMesEspecifico) {
                   const mesAnoItem = `${dataItem.getFullYear()}-${String(dataItem.getMonth() + 1).padStart(2, '0')}`;
                   return mesAnoItem === filtroMesEspecifico;
               }
 
+              // Filtro de atalhos rápidos (Hoje, Semana, Mês Atual)
               const hoje = new Date();
               const dataItemZorada = new Date(dataItem.getFullYear(), dataItem.getMonth(), dataItem.getDate()).getTime();
               const hojeZorada = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime();
@@ -268,10 +267,13 @@
 
       const dadosDashboard = getDadosFiltrados();
 
+      // ==========================================
+      // GERADOR DA LISTA DE MESES DISPONÍVEIS
+      // ==========================================
       const mesesDisponiveis = [...new Set(historico.map(item => {
           const d = new Date(item.timestamp);
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      }))].sort().reverse(); 
+      }))].sort().reverse(); // Organiza do mais recente para o mais antigo
 
       const nomeMesFormatado = (mesAno) => {
           const [ano, mes] = mesAno.split('-');
@@ -280,6 +282,7 @@
           return nome.charAt(0).toUpperCase() + nome.slice(1);
       };
 
+      // Gráficos
       useEffect(() => {
         if (view === 'dashboard') {
             if (chartBarRef.current) {
@@ -314,6 +317,7 @@
         }
       }, [view, dadosDashboard]);
 
+      // Navegação
       const handleSelectUser = (selectedUser) => {
           if (selectedUser.funcao === 'operacional') {
               setUser(selectedUser);
@@ -390,6 +394,9 @@
           </div>
       );
 
+      // ==========================================
+      // TELA 1: SELECIONAR LOJA
+      // ==========================================
       if (view === 'select_loja') {
           return (
               <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center animate-fade-in pt-safe-nav min-h-0">
@@ -414,6 +421,9 @@
           );
       }
 
+      // ==========================================
+      // TELA 2: QUEM É VOCÊ?
+      // ==========================================
       if (view === 'select_user') {
           const equipeDaLoja = equipe.filter(e => e.loja_id === currentLoja?.id || e.funcao === 'admin');
           return (
@@ -440,6 +450,9 @@
           );
       }
 
+      // ==========================================
+      // MODAL DE PIN (Para Gerentes/Admins)
+      // ==========================================
       if (view === 'pin_modal') {
           return (
               <div className="flex-1 flex flex-col p-6 bg-slate-900 justify-center items-center animate-fade-in">
@@ -468,6 +481,9 @@
           )
       }
 
+      // ==========================================
+      // TELA 3: HOME DO FUNCIONÁRIO (Modo Cozinha)
+      // ==========================================
       if (view === 'home_func') {
         return (
           <div className="flex-1 flex flex-col bg-gray-50 animate-slide-up pb-safe-nav pt-safe-nav">
@@ -486,6 +502,9 @@
         );
       }
 
+      // ==========================================
+      // TELA 4: FLUXO DE REGISTRO (5 PASSOS)
+      // ==========================================
       if (view === 'flow') {
         
         const proceedToStep5 = (motivoSelecionado) => {
@@ -742,6 +761,9 @@
         );
       }
 
+      // ==========================================
+      // TELA GERENTE: DASHBOARD COMPLETO
+      // ==========================================
       if (view === 'dashboard') {
         const totalPrejuizo = dadosDashboard.reduce((acc, curr) => acc + (curr.custo_total || 0), 0);
 
@@ -791,13 +813,14 @@
                   <button onClick={() => { setFiltroTempo('mes'); setFiltroMesEspecifico(''); }} className={`flex-1 py-1.5 font-bold rounded-lg text-xs transition-colors ${filtroTempo === 'mes' ? 'bg-slate-700 shadow-sm text-white' : 'text-slate-400'}`}>Mês</button>
                </div>
 
+               {/* AQUI ESTÁ O NOVO FILTRO DE HISTÓRICO DE MESES */}
                <div className="w-full">
                   <select 
                       value={filtroMesEspecifico} 
                       onChange={(e) => {
                           setFiltroMesEspecifico(e.target.value);
-                          if(e.target.value) setFiltroTempo(''); 
-                          else setFiltroTempo('hoje'); 
+                          if(e.target.value) setFiltroTempo(''); // Se escolheu um mês, desativa Hoje/Semana/Mês
+                          else setFiltroTempo('hoje'); // Se limpou, volta pro padrão
                       }} 
                       className="w-full bg-slate-800 text-slate-300 p-2.5 rounded-xl text-sm font-bold border border-slate-700 outline-none"
                   >
@@ -895,6 +918,9 @@
         );
       }
 
+      // ==========================================
+      // TELA GERENTE: UNIDADES (LOJAS)
+      // ==========================================
       if (view === 'manager_lojas') {
         const handleAddLoja = async () => {
           if(!novaLojaNome.trim()) return;
@@ -971,6 +997,9 @@
         );
       }
 
+      // ==========================================
+      // TELA GERENTE: PRODUTOS
+      // ==========================================
       if (view === 'manager_produtos') {
         const handleAddProduct = async () => {
           if(novoProdNome.trim() === '') return;
@@ -1061,6 +1090,9 @@
         );
       }
 
+      // ==========================================
+      // TELA GERENTE: EQUIPE
+      // ==========================================
       if (view === 'manager_equipe') {
         
         const canAddMembro = novoMembroNome.trim() !== '' && (novoMembroFuncao === 'operacional' || novoMembroCodigo.length === 4);
@@ -1215,20 +1247,21 @@
         );
       }
 
+      // ==========================================
+      // TELA GERENTE: AJUSTES (Logo & Nome)
+      // ==========================================
       if (view === 'manager_settings') {
         const handleSaveSettings = async () => { 
-            // 1. Salva na Memória do Celular IMEDIATAMENTE (Cache-First)
-            localStorage.setItem('pz_lojaNome', lojaNome);
-            if (lojaLogo) localStorage.setItem('pz_lojaLogo', lojaLogo);
-
-            // 2. Salva na Nuvem (Supabase)
             if (supabase) {
                 const objSalvar = { id: 1, nome_rede: lojaNome, logo_rede: lojaLogo };
                 const { error } = await supabase.from('configuracoes').upsert(objSalvar);
                 if (error) {
                     alert('ERRO AO SALVAR NA NUVEM: ' + error.message);
-                    return; // Para aqui se der erro na nuvem, mas a memória local já está atualizada
+                    return;
                 }
+            } else {
+                localStorage.setItem('lojaNome', lojaNome);
+                if(lojaLogo) localStorage.setItem('lojaLogo', lojaLogo);
             }
             alert('✅ Configurações salvas para todos os aparelhos da rede!'); 
             setView('dashboard'); 
